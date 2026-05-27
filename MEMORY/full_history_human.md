@@ -233,3 +233,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none — portfolio is genuinely at a saturated state for autonomous high-value work. Next session's substantive options likely lie outside per-repo invariant propagation; the demo-capture pipeline is the only outstanding v0.1 quality-bar item and that's operator-gated.
 
 **Next session:** Either NIGHT session continues with substantive engineering depth in one specific repo, or DAY session takes a short Phase A pass (if any PRs accumulate) and reports a healthy idle.
+
+## 2026-05-27 — Issue #9: portfolio-ops missing from Phase A for-loop in SESSION_PROMPT.md
+**Duration:** ~15 min · **Branch:** `session/2026-05-27-1907-issue-9`
+
+- The Phase A PR-review for-loop in `session-runner/SESSION_PROMPT.md` listed only the 12 portfolio repos, not portfolio-ops itself. Prior session memory had flagged this — PRs against portfolio-ops sat unseen until a manual sweep noticed them. Closing the gap: appended `portfolio-ops` to the for-loop on line 34.
+- Authored `tests/test_session_prompt_phase_a_loop.py` as the inverse-safety-net. It uses a regex to parse the `for r in ...; do` literal directly out of `SESSION_PROMPT.md` and parametrizes a presence test over all 13 known repo names. A future edit that drops any repo (especially portfolio-ops, the regression just hit) fails loudly with the exact missing repo named in the assertion message. Also asserts no unknown repos sneak in and the count matches.
+- portfolio-ops now carries three lock tests in `tests/` (readme-trending, init-script-cadence, session-prompt-phase-a-loop). All 27 tests passing locally — five existing init-cadence + six existing trending-readme + sixteen new for-loop cases.
+
+**Why this work, this session:** DAY session opened with zero priority:high issues across all 13 repos and five open PRs that were all draft demo-capture work (operator-blocked). The only actionable follow-up was the explicit recommendation in prior session memory to add portfolio-ops to the Phase A loop — concrete, testable, and a precise inverse-net candidate.
+
+**Open questions / blockers:** none — PR #10 ready for review.
+
+**Next session:** Loop ends here. Portfolio actionable backlog remains genuinely empty; the demo-capture pipeline is the only outstanding v0.1 item and is operator-gated.
