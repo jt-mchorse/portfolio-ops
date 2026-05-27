@@ -173,3 +173,17 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR ready for review.
 
 **Next session:** Per-repo CONTRIBUTING.md propagations. Each is a one-line edit per repo; aim to land them as 12 thin PRs across the rest of this NIGHT session.
+
+## 2026-05-27 — Night session, iteration 1: portfolio-ops README unstub (issue #1)
+**Duration:** ~20 min · **Branch:** `session/2026-05-27-0311-issue-01` · **PR:** #2
+
+- Found stale README claim in portfolio-ops: section "Trending workflow status" still said `scripts/trending_scan.py` and `scripts/prune_stale_trending.py` are "not yet implemented" two weeks after **D-003** shipped real stdlib-only implementations on 2026-05-11. Filed #1, posted plan, fixed.
+- Rewrote the section to describe what each script actually does and cited D-003 by name. Moved required-secrets guidance into a "Running it yourself" subsection.
+- Added `tests/test_readme_trending_status.py` (six assertions) and `.github/workflows/ci.yml` so the lock runs on every PR. Portfolio-ops previously had no CI workflow of its own.
+- This is the same drift class the per-repo `test_readme_decision_range` lock catches across the 12 portfolio repos — portfolio-ops itself had no equivalent until now.
+
+**Why this work, this session:** Three NIGHT sessions in a row hit "portfolio is saturated" — but a quick survey of portfolio-ops itself found a fresh stale-doc defect. Self-policing the spine repo was the highest-ROI quick win available; doing it first warms the loop before bigger work.
+
+**Open questions / blockers:** Untracked `workflows/` directory at the repo root mirrors `.github/workflows/` — out of scope for this issue but worth a follow-up issue if it's not intentional.
+
+**Next session iteration:** Loop continues across the 12 portfolio repos.

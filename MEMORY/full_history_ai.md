@@ -190,3 +190,20 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-05-27T03:15Z
+duration_min: 20
+issue: 1
+focus: unstub_trending_workflow_readme_section_per_d_003
+delta:
+  files_changed: 4   # README.md, tests/test_readme_trending_status.py, .github/workflows/ci.yml, .gitignore
+  tests_added: 6     # one parametrized test counts as 2 cases; total assertions land at 6 passing
+context_for_next_session:
+  - portfolio_ops_readme_trending_section_was_stale_two_weeks_after_d_003_landed_this_is_the_class_of_drift_the_per_repo_readme_decision_range_lock_catches_in_the_12_portfolio_repos_but_portfolio_ops_itself_had_no_such_test
+  - portfolio_ops_now_has_its_first_ci_workflow_pytest_runs_against_tests_directory_and_memory_check_validates_layout_files_plus_d_001
+  - portfolio_ops_lock_test_pattern_path_based_python_only_no_install_step_pytest_pip_install_under_ten_seconds
+  - workflows_directory_at_repo_root_is_untracked_three_files_mirror_github_workflows_filed_as_followup_not_in_scope_for_this_session
+decisions_made: []
+followups: []
+---
