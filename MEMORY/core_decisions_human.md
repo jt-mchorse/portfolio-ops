@@ -67,6 +67,32 @@ Strategic decisions for this repo, with reasoning. Append-only — superseded de
 
 **Related issues:** —
 
+## D-006 — 15-min minimum per issue (2026-05-13)
+**Decision:** A session must spend at least 15 minutes per issue it touches. Sessions that ship only a 5-line tweak and end early are a failure mode; when planned work finishes inside 15 minutes the session picks the next-highest-priority unblocked issue in the same repo and keeps going. Live since `session-runner/SESSION_PROMPT.md` commit 7690999 (2026-05-13); retroactively captured here 2026-05-27 via issue #5.
+
+**Why:** A handful of early sessions burned an entire turn loading context (handoff + MEMORY + PR pass) and then shipped a 5-line edit. The per-session fixed cost is too high to amortize over that little work. A minimum floor forces the session to either commit to a substantive issue or keep going to the next one.
+
+**Alternatives considered:**
+- No minimum, let short sessions ship — rejected because the cost asymmetry stayed broken.
+- Longer minimum (30 min) — rejected as too coarse; some genuinely small but valuable polish work would be precluded.
+
+**Reversibility:** Cheap — edit the floor number in SESSION_PROMPT.md.
+
+**Related issues:** #5 (retroactive capture).
+
+## D-007 — Fall-through to next repo when chosen repo is one-way-blocked (2026-05-13)
+**Decision:** When the chosen repo's top unblocked priority:high issues are all one-way decisions needing JT input, the session does not bail. Instead it leaves a one-line breadcrumb on the blocking issue and falls through to the next-best repo per the selection rules. Up to 3 fall-throughs per session before giving up. Live since `session-runner/SESSION_PROMPT.md` commit 4670bd0 (2026-05-13); retroactively captured here 2026-05-27 via issue #5.
+
+**Why:** Three consecutive scheduled runs (05-11/12/13) bailed on `agent-orchestration-platform` because its issue #1 was a one-way decision blocking everything else. JT was losing a full session every time. The fix lets the session do productive work elsewhere while still surfacing the blocker for JT's review.
+
+**Alternatives considered:**
+- End the session when blocked — rejected; wastes the scheduled run.
+- Require JT intervention every time — rejected; defeats the autonomous-session premise.
+
+**Reversibility:** Cheap — remove the fall-through clause from SESSION_PROMPT.md selection rules.
+
+**Related issues:** #5 (retroactive capture).
+
 ## D-008 — Time-of-day session caps + multi-issue loop (2026-05-14)
 **Decision:** Day sessions (runner starts 06:00-18:00 local) cap at 180 min; night sessions cap at 360 min. The runner detects the window and prepends a RUNTIME OVERRIDE header to the prompt. A run is now an explicit multi-issue, multi-repo loop — after closing one issue the session re-runs selection and picks the next.
 

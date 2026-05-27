@@ -207,3 +207,23 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-05-27T15:25Z
+duration_min: 25
+issue: 5
+focus: handoff_skill_cap_wording_refresh_plus_retroactive_d_006_d_007_capture
+phase: day_session_phase_b
+delta:
+  files_changed: 4   # COWORK_HANDOFF.md, skills/portfolio-session/SKILL.md, MEMORY/core_decisions_ai.md, MEMORY/core_decisions_human.md
+  tests_added: 0     # docs-only; per issue 5 acceptance criteria a separate lock would be over-fit (handoff/skill are not propagated downstream)
+context_for_next_session:
+  - canonical_session_briefing_docs_handoff_section_1_3_section_4_section_10_plus_portfolio_session_skill_description_time_budget_para_hard_rule_bullet_multi_session_para_and_failure_mode_bullet_all_now_cite_runtime_override_header_plus_d_008_180_360_min_cap_plus_d_006_15_min_minimum
+  - bootstrap_exemption_paragraph_handoff_section_9_line_552_left_as_is_documents_the_historic_first_run_exemption_not_active_per_session_policy
+  - retroactive_decision_capture_d_006_fifteen_min_minimum_per_issue_commit_7690999_2026_05_13_and_d_007_fall_through_to_next_repo_when_one_way_blocked_commit_4670bd0_2026_05_13_both_live_in_session_runner_session_prompt_md_since_may_13_but_never_logged_in_memory_until_this_issue
+  - retroactive_entries_marked_related_issues_5_with_timestamp_and_origin_commit_so_future_readers_can_trace_the_provenance
+  - handoff_section_10_blanket_no_auto_merge_rule_recharacterized_per_d_004_drafts_red_ci_and_fishy_diffs_still_protected
+  - no_new_lock_per_issue_5_explicit_acceptance_criteria_bootstrap_template_lock_from_3_is_the_inverse_net_for_the_seed_surface_handoff_and_skill_are_canonical_docs_not_propagated_downstream
+decisions_made: [D-006, D-007]   # retroactively captured
+followups: []
+---

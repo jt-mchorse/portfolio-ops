@@ -187,3 +187,19 @@ Three template shapes emerged:
 **Open questions / blockers:** Untracked `workflows/` directory at the repo root mirrors `.github/workflows/` — out of scope for this issue but worth a follow-up issue if it's not intentional.
 
 **Next session iteration:** Loop continues across the 12 portfolio repos.
+
+## 2026-05-27 — Issue #5: handoff + portfolio-session SKILL cadence wording refresh (with retroactive D-006/D-007 capture)
+**Duration:** ~25 min · **Branch:** `session/2026-05-27-1520-issue-05`
+
+- `COWORK_HANDOFF.md` and `skills/portfolio-session/SKILL.md` still shipped the pre-D-008 contract on every cold read by an operator or by Claude Code — 60-minute target, 65-minute hard ceiling, and the flat "do not auto-merge PRs" rule that D-004 already overrode for Phase A. The bootstrap-template fix (#3) closed the *seed* surface; this issue closes the *canonical-session-briefing* surface.
+- Updated §1.3, §4 Hard rules, §10 Must Not Do in the handoff; description + time-budget paragraph + hard-rule bullet + multi-session paragraph + failure-mode bullet in the skill. All now cite the `RUNTIME OVERRIDE` header (the runner's source of truth) and D-008's 180/360-min cadence; the §10 auto-merge rule is recharacterised per D-004 (drafts, red CI, and fishy diffs still protected).
+- Left §9 bootstrap exemption at line 552 as-is — it documents the historic first-run exemption, not active per-session policy.
+- Retroactively logged **D-006** (15-min minimum per issue, live in `session-runner/SESSION_PROMPT.md` since commit 7690999 on 2026-05-13) and **D-007** (fall-through to next repo when chosen repo is one-way-blocked, live since commit 4670bd0 on 2026-05-13). Both decisions were already binding on every scheduled session through the runner-prepended prompt, but had never been captured in `core_decisions_*.md`. Citing them in the refreshed handoff/skill text exposed the gap; capturing them now restores referential integrity.
+- Both retroactive entries are tagged with origin commit + timestamp so future readers can trace the provenance.
+- No new lock or test. The bootstrap-template lock (`tests/test_init_script_cadence.py` from #3) is the inverse-net for the *seed* surface that propagates to other repos; the handoff and skill are operator-readable canonical sources, not seeded elsewhere, so a separate guard would be over-fit. This is also the explicit acceptance criterion on #5.
+
+**Why this work, this session:** Iteration 1 of an autonomous DAY session after a heavy Phase A merge pass. The bootstrap-template fix had closed the seed surface but not the briefing surface; this finishes the symmetric pair.
+
+**Open questions / blockers:** none — PR ready for review.
+
+**Next session:** Loop continues — pick the next-best repo/issue from the portfolio.
