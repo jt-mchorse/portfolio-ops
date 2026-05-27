@@ -31,7 +31,7 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
 3. **PR review pass.** Check every portfolio repo for PRs marked ready (not draft):
    ```
-   for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook; do
+   for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook portfolio-ops; do
      gh pr list --repo jt-mchorse/$r --state open --json number,title,isDraft,mergeable,mergeStateStatus,statusCheckRollup | jq -r ".[] | select(.isDraft==false) | \"$r#\\(.number): \\(.title) | mergeable=\\(.mergeable) state=\\(.mergeStateStatus)\""
    done
    ```
