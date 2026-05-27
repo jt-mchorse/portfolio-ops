@@ -246,3 +246,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR #10 ready for review.
 
 **Next session:** Loop ends here. Portfolio actionable backlog remains genuinely empty; the demo-capture pipeline is the only outstanding v0.1 item and is operator-gated.
+
+## 2026-05-27 — Issue #11: promote `/tmp/resolve_memory_conflict.py` to `scripts/`
+**Duration:** ~15 min · **Branch:** `session/2026-05-27-1911-issue-11`
+
+- The MEMORY YAML/MD rebase-conflict resolver had been living in `/tmp` across multiple sessions. Prior memory called the bar "if seen repeatedly" — six invocations across two sessions in 24h cleared it. Promoted to `scripts/resolve_memory_conflict.py` alongside `trending_scan.py` and `prune_stale_trending.py`, with argparse, a `--dry-run` flag, and a post-resolution invariant check that raises if conflict markers remain (catches a future regression where the input shape stops matching the append-only pattern).
+- Authored `tests/test_resolve_memory_conflict.py` (15 cases). Before writing the fixtures, I reproduced a real 3-way merge conflict on `MEMORY/full_history_ai.md` in a scratch repo and inspected the git output. The empirical shape: the `---` opener of the new YAML block stays in the prefix (above `<<<<<<<`), and the trailer (`decisions_made: []`, `followups: []`, `---`) is shared after `>>>>>>>` because git's diff aligns on the repeated trailer lines. The first draft of my fixture had `---` inside the conflict markers — the resolver-vs-expected test caught it, and I fixed the fixture rather than the resolver. Coverage: marker absence, both-blocks-kept, order preserved, trailer correctly attached to block A, exact-string round trip, no-op on clean text, plus four CLI integration cases via `tmp_path`.
+- portfolio-ops now carries four lock tests under pytest (readme-trending, init-script-cadence, session-prompt-phase-a-loop, resolve-memory-conflict). All 26 pass on this branch (the 27th from issue #9 will appear after PR #10 lands and this branch rebases — itself an eat-our-own-dogfood scenario for the tool this PR ships).
+
+**Why this work, this session:** Iteration 2 of an autonomous DAY session. Issue #9 (Phase A for-loop) closed iteration 1; iteration 2 picked the second concrete follow-up flagged in prior session memory, which had explicitly named the "seen repeatedly" bar.
+
+**Open questions / blockers:** none — PR #12 ready for review.
+
+**Next session:** Loop probably ends here. Portfolio actionable backlog is empty; the demo-capture pipeline remains operator-gated. When PR #10 and PR #12 both land, future sessions can rebase against rather than re-implement this tool.
