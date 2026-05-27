@@ -30,11 +30,13 @@ ACTIVE_WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 TEMPLATES_DIR = REPO_ROOT / "workflows"
 
 # The exact set of workflow files that should live in .github/workflows/.
-# ci.yml = portfolio-ops's own lint/test/memory-check CI (added in #2).
+# verify.yml = portfolio-ops's own test/memory-check CI (added in #2 as ci.yml,
+# renamed in #18 to force a fresh workflow registration after GitHub Actions
+# kept stale state from the 17-day name-collision with the deleted template).
 # trending-daily.yml / trending-weekly.yml = scheduled scanners that file
 # issues across the 12 portfolio repos (in repo since bootstrap).
 EXPECTED_ACTIVE_WORKFLOWS = (
-    "ci.yml",
+    "verify.yml",
     "trending-daily.yml",
     "trending-weekly.yml",
 )
