@@ -1,11 +1,11 @@
 ---
 name: portfolio-session
-description: Use this skill at the start and end of every Cowork session that works on any portfolio repo (jt-mchorse/rag-production-kit, agent-orchestration-platform, llm-eval-harness, prompt-regression-suite, ai-app-integration-tests, nextjs-streaming-ai-patterns, python-async-llm-pipelines, embedding-model-shootout, chunking-strategies-lab, llm-cost-optimizer, vector-search-at-scale, mcp-server-cookbook, portfolio-ops). It enforces the four-phase session structure (start, plan, execute, close), the ~60-minute cap, and the discipline of issue-driven work. Pair with portfolio-memory skill for a complete session.
+description: Use this skill at the start and end of every Cowork session that works on any portfolio repo (jt-mchorse/rag-production-kit, agent-orchestration-platform, llm-eval-harness, prompt-regression-suite, ai-app-integration-tests, nextjs-streaming-ai-patterns, python-async-llm-pipelines, embedding-model-shootout, chunking-strategies-lab, llm-cost-optimizer, vector-search-at-scale, mcp-server-cookbook, portfolio-ops). It enforces the four-phase session structure (start, plan, execute, close), the D-008 time-of-day cap (180 min DAY / 360 min NIGHT, multi-issue loop) with a D-006 15-min minimum per issue, and the discipline of issue-driven work. The runner prepends a `RUNTIME OVERRIDE` header with the active cap; obey that over any number quoted here. Pair with portfolio-memory skill for a complete session.
 ---
 
 # Portfolio Session Protocol
 
-Every session for every portfolio repo follows the same four phases. Total time budget: **~60 minutes**, hard ceiling at **65 minutes**. Bootstrap sessions are exempt and must be tagged `bootstrap` in memory.
+Every session for every portfolio repo follows the same four phases. Per **D-008 (2026-05-14)** the time budget is time-of-day-aware with a multi-issue loop: **180 min (DAY) / 360 min (NIGHT)**. Per **D-006 (2026-05-14)** each issue gets a **15-min minimum** — short sessions that ship only a 5-line tweak are a failure mode. Stop ≥15 min before the cap to land a clean checkpoint, then end. The runner prepends a `RUNTIME OVERRIDE` header with the active cap for each invocation; obey the override over any number quoted in this skill. Bootstrap sessions are exempt and must be tagged `bootstrap` in memory.
 
 ## Phase 1 — Start (5 min)
 
@@ -92,7 +92,7 @@ Then:
 - **Never push to main.** Feature branches and PRs only.
 - **Never merge without JT review.** Exception: memory-only commits and obvious docs typos.
 - **Never close an issue** without either a merged PR or a written explanation comment.
-- **Never exceed 65 minutes.** If work isn't done, checkpoint with what's there. The next session resumes.
+- **Never exceed the runner's `RUNTIME OVERRIDE` cap** (per D-008: 180 min DAY / 360 min NIGHT baseline, multi-issue loop). Stop ≥15 min before the cap to land a clean checkpoint. The next session resumes.
 - **Never plan from memory you didn't read.** If you skipped Phase 1's memory read, you are not in a valid session.
 
 ## Selecting which repo to work this session
@@ -106,13 +106,13 @@ When Cowork runs on a schedule and needs to pick a repo:
 
 ## Multi-repo session days
 
-It's fine to run 2–3 sessions in a single day across different repos, with the 60-minute cap applied per session. After each session, take a clean break (don't carry state across; each session re-reads memory).
+Per D-008 a single session already runs a multi-issue, multi-repo loop within its 180/360-min cap — looping back to repo/issue selection after each Phase C close, until within 15 min of the cap. Across days, scheduled DAY and NIGHT sessions chain through this pattern; each session start re-reads memory and does not carry transient state from the prior one.
 
 ## Failure modes to avoid
 
 - Starting code before posting the plan comment.
 - Skipping memory because "the session was short."
 - Bundling memory updates into code commits.
-- Letting one session sprawl past 65 minutes "to finish this last thing."
+- Letting one session sprawl past the `RUNTIME OVERRIDE` cap "to finish this last thing" — per D-008 stop ≥15 min before the cap, checkpoint cleanly, and end.
 - Closing issues without linked PRs.
 - Working an issue that conflicts with a core decision without flagging it first.
