@@ -285,3 +285,17 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR ready for review; the proof-point is the next post-merge run on main producing a non-zero pytest duration.
 
 **Next session:** Phase A audit cadence is the right place to keep catching silent-rot regressions like this. The new Phase A habit recommended from #13 ("audit Actions tab for paired failures") would have caught both this and the trending-workflow-secret-missing failures sooner.
+
+## 2026-05-27 — Issue #19: Phase A operational-health audit script
+**Duration:** ~25 min · **Branch:** `session/2026-05-27-1730-issue-19`
+
+- Codified the three silent-rot fingerprints uncovered by this session into `scripts/audit_phase_a.py`. Each check hits one GitHub Actions REST endpoint per repo (`actions/runs?event=push&branch=main`, `actions/workflows`, `actions/runs?event=schedule`) and emits structured findings. Stdlib-only (urllib + json), honors `GH_TOKEN` / `GITHUB_TOKEN`, falls back to unauth reads for public repos. Exit 0 = clean, 1 = findings, 2 = fetch error.
+- Live-tested against portfolio-ops: returns 7 findings exactly matching the open issues — 4 paired-failure runs (issue #13 shape, historical), 2 stuck-registration workflows (ci.yml + verify.yml from issue #15), 1 stale schedule (trending-daily, 9 consecutive failures from issue #17). Live-tested against llm-eval-harness: returns clean. Confirms no false positives on healthy repos.
+- Authored 12 test cases via `unittest.mock.patch` of `urllib.request.urlopen` returning canned API fixtures. Coverage matrix per finding shape: positive path + negative paths (single run per SHA, uniform success, disabled workflow, success between failures, threshold parameter) + the no-finding clean case + end-to-end CLI shape (exit codes, summary, --json output).
+- Deferred wiring the script into `session-runner/SESSION_PROMPT.md` to a separate doc-only follow-up. The script should prove itself across a few sessions of dry runs first; an invariant-failing test on a non-yet-deployed script would be over-fit.
+
+**Why this work, this session:** Iteration 6. The three silent-rot fingerprints all currently exist in portfolio-ops *right now* (issues #15 and #17). The audit script will keep flagging them on every scheduled session even if the operator can't address them immediately — making the silence accountable.
+
+**Open questions / blockers:** portfolio-ops CI is currently broken (issue #15) so this PR's CI badge won't go green until that's resolved. 61 pytest pass locally.
+
+**Next session:** After the operator deals with #15 and #17, the audit script returns clean and the next session's Phase A can begin invoking it as a sanity check. SESSION_PROMPT.md wiring follow-up at that point.
