@@ -272,3 +272,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR ready for review; one CI run should fire (not two) on the merge.
 
 **Next session:** Phase A will likely still find an empty issue backlog. Future Phase A passes should include a quick "any paired failing workflow runs in the last 24h?" check as standard hygiene; this issue's fix doesn't make it impossible for a new template-shaped workflow to land in `.github/workflows/`, only loudly noisy when it does (via the new lock test). The lock catches the regression; the Phase A habit catches new failure modes.
+
+## 2026-05-27 — Issue #15: stale ci.yml workflow registration heals via workflow_dispatch
+**Duration:** ~10 min · **Branch:** `session/2026-05-27-1640-issue-15`
+
+- PR #14 deleted the misplaced template, but the post-merge push *still* produced a failing 0s 'workflow file issue' run for the real ci.yml. Tracing: GitHub Actions had cached the workflow under `name = '.github/workflows/ci.yml'` (path-as-name fallback) instead of `name = 'ci'` from the YAML — a leftover from the 17-day conflict where the template had won the 'ci' name slot. With the template gone, the registration didn't auto-heal on subsequent pushes.
+- Adding `workflow_dispatch:` under `on:` is a no-op for the normal push/PR triggers but forces GitHub's workflow parser to re-read the file and re-register it with the declared name. Side benefit: emergency manual-trigger affordance via `gh workflow run ci.yml`. After merge of this PR, the workflow registration should heal and the test job should actually run `pytest tests/ -q` for ~15-30s rather than failing in 0s.
+- No new lock test for this — it's a GitHub Actions runtime state issue, not a file-shape property. `tests/test_workflows_dir_only_active.py` from #14 already protects against the underlying cause (re-adding `*-template.yml` to `.github/workflows/`).
+
+**Why this work, this session:** Iteration 4 of the autonomous DAY session loop. PR #14's fix was necessary but not sufficient — the runtime registration didn't heal on its own. The portfolio-wide bigger picture: the 42 lock tests added across recent sessions have never run in CI on portfolio-ops because of this conflict. After #16 merges, they will.
+
+**Open questions / blockers:** none — PR ready for review; the proof-point is the next post-merge run on main producing a non-zero pytest duration.
+
+**Next session:** Phase A audit cadence is the right place to keep catching silent-rot regressions like this. The new Phase A habit recommended from #13 ("audit Actions tab for paired failures") would have caught both this and the trending-workflow-secret-missing failures sooner.
