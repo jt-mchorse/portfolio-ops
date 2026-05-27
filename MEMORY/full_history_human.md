@@ -285,3 +285,18 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR ready for review; the proof-point is the next post-merge run on main producing a non-zero pytest duration.
 
 **Next session:** Phase A audit cadence is the right place to keep catching silent-rot regressions like this. The new Phase A habit recommended from #13 ("audit Actions tab for paired failures") would have caught both this and the trending-workflow-secret-missing failures sooner.
+
+## 2026-05-27 — Issue #15 follow-up: rename ci.yml to verify.yml (workflow_dispatch alone didn't heal)
+**Duration:** ~10 min · **Branch:** `session/2026-05-27-1655-issue-15-rename`
+
+- PR #16 (issue #15 fix) shipped `workflow_dispatch:` on the assumption that any workflow file edit would re-trigger GitHub's parser and heal the stale path-as-name registration. The post-merge observation: it did not. Workflow id 283921465 kept its `name = ".github/workflows/ci.yml"` and `gh workflow run ci.yml --ref main` returned `HTTP 422: Workflow does not have 'workflow_dispatch' trigger` — even with the trigger present in main's YAML.
+- Tried the `gh api -X PUT .../actions/workflows/283921465/disable` then `.../enable` toggle. `updated_at` advanced but `name` did not re-parse. The registration is sticky on this path; GitHub Actions does not re-evaluate `name:` after a collision-event leaves a fallback registration.
+- The cure is a path change. Renamed `.github/workflows/ci.yml` → `.github/workflows/verify.yml` and updated the YAML `name:` from `ci` to `verify`. A new workflow ID will be created on the next push with the proper YAML-derived name. The old workflow id 283921465 becomes orphaned and stops trying to run.
+- Updated the lock test `tests/test_workflows_dir_only_active.py` (`EXPECTED_ACTIVE_WORKFLOWS` from `("ci.yml", ...)` to `("verify.yml", ...)`). 49 pytest still green locally.
+- `templates/init-portfolio-repo.sh` is unaffected — it writes a per-repo `ci.yml` for new portfolio repos and does not reference the portfolio-ops internal workflow name.
+
+**Why this work, this session:** Iteration 5 of the autonomous DAY session loop, follow-up to a PR that didn't actually fix the underlying issue. Closing-the-loop discipline: when an observation contradicts a hypothesis, surface that immediately and re-plan rather than declare success.
+
+**Open questions / blockers:** none — verification still happens post-merge. The new workflow id should appear in `/actions/workflows` with `name: verify`, and the next push run should have a non-zero pytest duration for the first time. If the rename also fails to heal, this hits the GitHub Actions edge-case ceiling and the next step is to ask the operator to admin-delete the orphaned workflow via the GitHub web UI (which clears server-side cache).
+
+**Next session:** Phase A pulls the registration shape into the standard audit list — both 'paired failure on every push' and 'workflow name equals path' are now known silent-rot fingerprints.
