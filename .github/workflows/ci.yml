@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+      - name: Run lock tests
+        run: pytest tests/ -q
+
+  memory-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify MEMORY layout
+        run: |
+          test -f MEMORY/full_history_ai.md
+          test -f MEMORY/full_history_human.md
+          test -f MEMORY/core_decisions_ai.md
+          test -f MEMORY/core_decisions_human.md
+      - name: Verify D-001 baseline decision exists
+        run: grep -q "id: D-001" MEMORY/core_decisions_ai.md

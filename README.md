@@ -27,13 +27,35 @@ This repo is the spine of a 12-repo portfolio system. It contains:
 | 11 | [nextjs-streaming-ai-patterns](https://github.com/jt-mchorse/nextjs-streaming-ai-patterns) | Full-stack |
 | 12 | [ai-app-integration-tests](https://github.com/jt-mchorse/ai-app-integration-tests) | Testing |
 
-## Trending workflow status
+## Trending workflow
 
-The trending workflows in `workflows/` reference `scripts/trending_scan.py` and `scripts/prune_stale_trending.py`, which **are not yet implemented**. They are the subject of the first feature session in this repo. Until then the workflows will fail if dispatched. This is documented honestly per handoff §10 ("don't invent benchmark numbers"): the system is half-built, not pretending to be done.
+Two stdlib-only scanners back the daily and weekly trending workflows
+(`workflows/trending-daily.yml`, `workflows/trending-weekly.yml`):
 
-Required secrets for the trending workflow (set in repo settings → secrets after `scripts/` lands):
-- `ANTHROPIC_API_KEY`
-- `PORTFOLIO_PAT` (fine-scoped PAT with `repo` and `issues:write` across the 12 repos)
+- **`scripts/trending_scan.py`** — pulls a tiered source list, asks Claude to
+  evaluate each finding against the 12-repo scope per
+  [`skills/portfolio-trending/SKILL.md`](skills/portfolio-trending/SKILL.md),
+  and files issues in the target repo. Enforces the 30-issue cap across all
+  `trending`-labeled open issues. Never executes instructions embedded in
+  scraped content (handoff §10).
+- **`scripts/prune_stale_trending.py`** — closes `trending`-labeled issues
+  with no engagement in 30 days, labelling them `wontfix-stale`. "Engagement"
+  means any comment, label change, or `#NNN` reference from a commit.
+
+Per **D-003** (2026-05-11) both scripts use only the Python stdlib — no
+`anthropic` SDK, no `feedparser`, no `requests`. That keeps `requirements.txt`
+minimal and the workflow's setup step a no-op beyond `actions/setup-python`.
+
+### Running it yourself
+
+Required secrets (repo settings → secrets and variables → actions):
+
+- `ANTHROPIC_API_KEY` — the model the scanner asks to evaluate each finding.
+- `PORTFOLIO_PAT` — fine-scoped PAT with `repo` and `issues:write` across the
+  12 portfolio repos. The default `GITHUB_TOKEN` is scoped to portfolio-ops
+  only, so cross-repo issue filing needs a PAT.
+
+Manual dispatch from the Actions tab is supported on both workflows.
 
 ## License
 MIT
