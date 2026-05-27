@@ -259,3 +259,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR #12 ready for review.
 
 **Next session:** Loop probably ends here. Portfolio actionable backlog is empty; the demo-capture pipeline remains operator-gated. When PR #10 and PR #12 both land, future sessions can rebase against rather than re-implement this tool.
+
+## 2026-05-27 — Issue #13: `.github/workflows/ci-template.yml` misplaced, fails every push
+**Duration:** ~25 min · **Branch:** `session/2026-05-27-1610-issue-13`
+
+- Phase A PR-review pass merged two ready PRs in portfolio-ops (#10 phase-a for-loop fix + lock; #12 promotion of `/tmp/resolve_memory_conflict.py` to `scripts/` + lock). PR #12 needed a rebase against the just-merged PR #10 — used the resolver script that PR #12 was shipping to handle the YAML conflict on `full_history_ai.md`, manually resolved the MD conflict in `full_history_human.md`, force-with-leased the rebase, and merged after CI re-greened. The session ate its own dogfood.
+- During the PR-review pass I audited the Actions run history out of curiosity. The runs list showed paired ci runs on every push: one labeled `ci` succeeding (id ...085244) and one labeled `.github/workflows/ci.yml` failing (id ...084915). The failing one's error: "This run likely failed because of a workflow file issue." Tracing back: `.github/workflows/ci-template.yml` and `.github/workflows/ci.yml` both declare `name: ci`. The template was left in `.github/workflows/` by the bootstrap commit on 2026-05-10 — every push since has fired both workflows; the template's failure was silent because PR merges weren't blocked by it. 17 days of silent rot in the operational backbone.
+- Filed issue #13 at `priority:high`, posted the plan as a comment, deleted `.github/workflows/ci-template.yml` (the canonical copy at `workflows/ci-template.yml` is byte-identical and was tracked in PR #8; `init-portfolio-repo.sh` line 44 reads from `workflows/` so the template's intended use is unaffected). Authored `tests/test_workflows_dir_only_active.py` as the inverse-net: presence test parametrized over the three intended active workflows (`ci.yml`, `trending-daily.yml`, `trending-weekly.yml`), plus rejection tests for `*-template.yml` shapes and any unexpected filename. All 49 tests passing.
+
+**Why this work, this session:** Three sessions in a row have reported zero priority:high issues across all 13 repos — Phase A is what finally caught this real bug. The portfolio truly is saturated for new feature work, but the operational backbone needs periodic audits and Phase A is the right place to do them.
+
+**Open questions / blockers:** none — PR ready for review; one CI run should fire (not two) on the merge.
+
+**Next session:** Phase A will likely still find an empty issue backlog. Future Phase A passes should include a quick "any paired failing workflow runs in the last 24h?" check as standard hygiene; this issue's fix doesn't make it impossible for a new template-shaped workflow to land in `.github/workflows/`, only loudly noisy when it does (via the new lock test). The lock catches the regression; the Phase A habit catches new failure modes.
