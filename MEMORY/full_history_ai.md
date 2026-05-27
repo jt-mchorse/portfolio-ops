@@ -225,5 +225,25 @@ context_for_next_session:
   - handoff_section_10_blanket_no_auto_merge_rule_recharacterized_per_d_004_drafts_red_ci_and_fishy_diffs_still_protected
   - no_new_lock_per_issue_5_explicit_acceptance_criteria_bootstrap_template_lock_from_3_is_the_inverse_net_for_the_seed_surface_handoff_and_skill_are_canonical_docs_not_propagated_downstream
 decisions_made: [D-006, D-007]   # retroactively captured
+decisions_made: []
+followups: []
+---
+
+---
+session: 2026-05-27T15:35Z
+duration_min: 8
+issue: 7
+focus: track_workflows_directory_referenced_by_init_portfolio_repo_sh
+phase: day_session_phase_b_iteration_2
+delta:
+  files_changed: 3   # workflows/ci-template.yml, workflows/trending-daily.yml, workflows/trending-weekly.yml (all newly tracked)
+  tests_added: 0     # handoff section 9 fresh-clone-bootstrap criterion is the implicit gate; separate lock over-fit
+context_for_next_session:
+  - fresh_clone_bootstrap_was_silently_broken_init_portfolio_repo_sh_line_44_cp_from_workflows_ci_template_yml_but_directory_was_never_tracked_only_existed_on_bootstrap_machine
+  - prior_session_memory_already_flagged_workflows_directory_at_repo_root_is_untracked_three_files_mirror_github_workflows_filed_as_followup_not_in_scope_for_that_session_now_closed
+  - three_files_workflows_ci_template_yml_workflows_trending_daily_yml_workflows_trending_weekly_yml_added_to_git_contents_byte_identical_to_github_workflows_copies_at_head_diff_q_returns_empty
+  - no_changes_to_github_workflows_portfolio_ops_own_ci_unaffected
+  - handoff_section_11_explicitly_lists_these_three_files_so_their_tracked_presence_now_matches_the_spec
+decisions_made: []
 followups: []
 ---

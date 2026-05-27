@@ -203,3 +203,18 @@ Three template shapes emerged:
 **Open questions / blockers:** none — PR ready for review.
 
 **Next session:** Loop continues — pick the next-best repo/issue from the portfolio.
+
+## 2026-05-27 — Issue #7: track `workflows/` templates referenced by init-portfolio-repo.sh
+**Duration:** ~8 min · **Branch:** `session/2026-05-27-1527-issue-07`
+
+- Fresh-clone bootstrap was silently broken. `templates/init-portfolio-repo.sh:44` copies from `$portfolio_ops_root/workflows/ci-template.yml` when seeding a new repo, but the `workflows/` directory at portfolio-ops root was never tracked in git — it only existed locally on the bootstrap machine. A `git clone jt-mchorse/portfolio-ops && ./templates/init-portfolio-repo.sh new-repo` would have hit a missing-file error.
+- Prior-session memory had already noted this gap as a followup ("workflows directory at repo root is untracked, three files mirror .github/workflows, filed as followup not in scope for this session"). This is that followup.
+- Added the three template files: `workflows/ci-template.yml`, `workflows/trending-daily.yml`, `workflows/trending-weekly.yml`. Verified byte-identical to their `.github/workflows/` counterparts before staging (`diff -q` returned empty for all three).
+- No changes to `.github/workflows/` — portfolio-ops' own active CI is unaffected. The two locations have distinct semantics now: `workflows/` is the template source the init script reads from, `.github/workflows/` is what GitHub Actions runs for portfolio-ops itself. Handoff §11 explicitly lists the three template files, so their tracked presence now matches the spec.
+- No new lock or test — the fresh-clone-bootstrap criterion in handoff §9 is already the implicit gate, and a separate guard would be over-fit (it's a *tracking state* gap, not a *content drift* gap).
+
+**Why this work, this session:** Iteration 2 of an autonomous DAY session. The portfolio's open priority:high backlog cleared after Phase A; this followup-flagged-by-prior-memory was the next highest-leverage thing.
+
+**Open questions / blockers:** none — PR ready for review.
+
+**Next session:** Loop continues — pick the next-best work item.
