@@ -159,3 +159,17 @@ Three template shapes emerged:
 **Open questions / blockers:** none. Portfolio invariants saturated again — next session should pivot.
 
 **Next session:** Demo GIF capture work is still the only operator-blocked v0.1 gap across 12 repos. Substantive next work is either trending-issue-driven features or new portfolio-wide patterns.
+
+## 2026-05-27 — Issue #3: init-portfolio-repo.sh CONTRIBUTING seed updated to D-008 cadence
+**Duration:** ~10 min · **Branch:** `session/2026-05-27-0336-issue-03`
+
+- `templates/init-portfolio-repo.sh:102` still seeded every new portfolio repo's `CONTRIBUTING.md` with the pre-D-008 "~60-minute session cap" line. D-008 (2026-05-14) updated session caps to 180 min DAY / 360 min NIGHT with a multi-issue loop; the template never propagated. All twelve portfolio repos have the stale contract in their `CONTRIBUTING.md` files (verified with a portfolio-wide grep).
+- Rewrote the seeded bullets to reflect D-008 (cap numbers + multi-issue loop) and D-004 (Phase A PR auto-merge for non-draft green-CI PRs).
+- New lock: `tests/test_init_script_cadence.py` with five tests — script exists, "60-minute session cap" substring forbidden, "D-008" referenced, both "180" and "360" minute numbers present (parametrized over the two caps). Same loud-failure shape as the readme_trending lock from #1.
+- Portfolio-ops now has two locks under its `tests/` directory: `test_readme_trending_status.py` (from #1) and `test_init_script_cadence.py` (from this issue). Both run under the `pytest` step in `.github/workflows/ci.yml`.
+
+**Why this work, this session:** Iteration 8 of an autonomous NIGHT session. The pattern of "scan all repos for shared drift, find the root cause in portfolio-ops, fix template + lock + propagate" is now compounding — this is the second portfolio-ops template defect this session.
+
+**Open questions / blockers:** none — PR ready for review.
+
+**Next session:** Per-repo CONTRIBUTING.md propagations. Each is a one-line edit per repo; aim to land them as 12 thin PRs across the rest of this NIGHT session.

@@ -173,3 +173,20 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-05-27T03:55Z
+duration_min: 10
+issue: 3
+focus: init_script_cadence_unstub_to_d_008_plus_lock_against_legacy_60_min_wording
+delta:
+  files_changed: 2   # templates/init-portfolio-repo.sh, tests/test_init_script_cadence.py
+  tests_added: 5
+context_for_next_session:
+  - portfolio_ops_init_portfolio_repo_sh_seeded_every_new_contributing_md_with_pre_d_008_60_minute_session_cap_text_d_008_landed_2026_05_14_but_the_template_never_propagated
+  - all_twelve_portfolio_repos_currently_carry_the_stale_60_minute_cap_in_contributing_md_root_cause_was_this_template_propagation_to_each_repo_is_separate_follow_up_per_repo_issues
+  - lock_pattern_test_init_script_cadence_py_three_loud_failures_60_minute_session_cap_forbidden_d_008_required_and_both_180_and_360_minute_numbers_required_parametrized_over_the_two_caps
+  - portfolio_ops_now_has_two_locks_test_readme_trending_status_from_issue_1_and_this_one_both_under_pytest_in_ci_yml
+decisions_made: []
+followups: []
+---
