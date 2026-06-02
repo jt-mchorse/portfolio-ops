@@ -300,6 +300,19 @@ Three template shapes emerged:
 
 **Next session:** After the operator deals with #15 and #17, the audit script returns clean and the next session's Phase A can begin invoking it as a sanity check. SESSION_PROMPT.md wiring follow-up at that point.
 
+## 2026-06-02 — Issue #21: Wire `audit_phase_a.py` into Phase A
+**Duration:** ~35 min · **Branch:** `session/2026-06-02-1514-issue-21`
+
+- Inserted a new step 4 "Silent-rot audit pass" in `session-runner/SESSION_PROMPT.md`, immediately after the PR-review pass. The loop iterates over the same 13 repos already enumerated in step 3, captures per-repo exit codes via `rc=$?` and a `case` statement (no `| head` swallow), and documents the 0/1/2 exit semantics inline. Marked observational and non-blocking with explicit do-not-auto-file framing. Subsequent steps 4→5, 5→6, 6→7, 7→8 renumbered.
+- Added `tests/test_session_prompt_phase_a_audit.py` (22 cases) as the inverse-safety-net lock — mirrors the shape of `test_session_prompt_phase_a_loop.py` which locks the PR-review for-loop. Beyond per-repo presence, it asserts script-exists, --repo flag used, all three exit codes documented, observational framing present, and a lockstep invariant that the PR-review loop and the audit loop enumerate the same set in the same order.
+- Dogfood: ran the documented invocation block against `llm-eval-harness` (clean) and `portfolio-ops` (six findings verbatim). Both rc=0 and rc=1 paths surface correctly.
+
+**Why this work, this session:** PR #20's closing memory explicitly deferred wiring `audit_phase_a.py` into SESSION_PROMPT.md "until the script proves itself across a few sessions". Today's session ran the audit ad-hoc during Phase A and used the findings to confirm 12/12 portfolio repos clean plus six known portfolio-ops findings — two sessions in, the script earned its protocol slot.
+
+**Open questions / blockers:** None for this issue. The audit re-confirmed three operator-blocked items already tracked elsewhere (#15 ci.yml registration, #17 ANTHROPIC_API_KEY, draft PR #18). No new issues filed from audit output this round; observational only per the wired-in protocol.
+
+**Next session:** PR #22 will land via Phase A merge cadence. The next-session audit will be the first one to actually run from the protocol rather than ad-hoc, providing the first behavior-from-doc validation.
+
 ## 2026-06-17 — Issue #27: CI phantom failures since 2026-05-27 — actual root cause is one unquoted YAML colon
 **Duration:** ~60 min · **Branch:** `session/2026-06-17-1519-issue-27`
 
