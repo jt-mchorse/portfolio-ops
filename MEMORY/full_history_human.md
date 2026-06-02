@@ -330,3 +330,17 @@ Three template shapes emerged:
 **Open questions / blockers:** none for this PR — it's CI-green and ready for review. Follow-ups: disable phantom workflows `283921465` + `284535289` via API after merge; close PR #18; rebase PR #22 and #26 onto fresh main.
 
 **Next session:** Once #28 merges, the next session's Phase A loop should re-evaluate PR #22 and #26 with their fresh CI runs. The audit_phase_a.py script could grow a new finding shape for "workflow runs completing with zero jobs across multiple SHAs" — phantom-YAML-failure is a fingerprint distinct from the three it currently checks.
+
+## 2026-06-02 — Issue #23: `resolve_memory_conflict.py` clear error for file-path args
+**Duration:** ~20 min · **Branch:** `session/2026-06-02-1524-issue-23`
+
+- Added an `is_file()` guard at the top of `main()` in `scripts/resolve_memory_conflict.py`. When the positional arg resolves to a file (a session reaching for the script and passing `MEMORY/full_history_ai.md` instead of the repo root), the script exits 1 with `error: '<arg>' is a file; pass the repo root containing MEMORY/ instead`. The existing missing-MEMORY-dir branch is unchanged.
+- Added a 16th case to `tests/test_resolve_memory_conflict.py` covering exit code, error-message content, and a negative assertion that the legacy confusing `/MEMORY/ not found` shape no longer surfaces for file paths.
+- Refined the issue spec mid-flight: initial body proposed exit code 2 (matching the `audit_phase_a.py` convention) but `resolve_memory_conflict.py` documents 0/1 only. Kept internal consistency over cross-script alignment; left a comment on #23 explaining the deviation.
+- Dogfood surfaced a separate false-positive bug in `_process()` — the substring check for `<<<<<<<` matches prose mentions of the marker in MEMORY files (only triggers on portfolio-ops' own MEMORY/, which documents the marker shape). Filed as issue #25 for a future session per Phase B "Stay on the issue" discipline rather than expanding scope.
+
+**Why this work, this session:** With priority:high genuinely exhausted after #21 (only operator-blocked #17 left), the next-best work was a real-bug fix observed in-session per the established pattern. The legacy error shape was the failure mode this 20-min fix prevents.
+
+**Open questions / blockers:** None for this issue. Issue #25 (substring false positive) noted but deliberately deferred.
+
+**Next session:** PR #26 lands in Phase A. The next session's Phase A audit (now running from protocol post-#22) will validate the wired-in step works end-to-end.
