@@ -42,7 +42,28 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
    **Override note:** This PR review-and-merge step overrides handoff §10's "never auto-merge". The override is D-004 in portfolio-ops MEMORY. The protections that remain: drafts are never auto-merged; only `isDraft=false` PRs are eligible.
 
-4. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through):
+4. **Silent-rot audit pass** (observational, non-blocking). Run `scripts/audit_phase_a.py` over the same 13 repos to surface three silent-rot fingerprints (paired-failure, stuck-registration, stale-schedule):
+   ```
+   cd ~/projects/portfolio/portfolio-ops
+   for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook portfolio-ops; do
+     out=$(python3 scripts/audit_phase_a.py --repo "$r" 2>&1); rc=$?
+     case "$rc" in
+       0) echo "audit clean: $r" ;;
+       1) echo "audit findings ($r):"; echo "$out" ;;
+       2) echo "audit fetch-error ($r): $out" ;;
+       *) echo "audit unexpected exit=$rc ($r): $out" ;;
+     esac
+   done
+   ```
+   The script's exit codes encode the per-repo result; preserve them via `rc=$?` rather than swallowing through `| head` — the case-statement above does this correctly.
+   - **Clean (exit 0):** log `audit clean: <repo>` to the running session report; no action needed.
+   - **Findings (exit 1):** quote the finding lines verbatim in the Phase D summary. Do NOT auto-file issues from findings this round — the audit is observational. If a finding looks like a real, operator-actionable bug not already tracked in an open issue, file one new issue per finding-cluster with `priority:high` and reference the audit output.
+   - **Fetch error (exit 2):** log and continue — a flaky GitHub API call is not a session blocker.
+   - **Time-box: 5 minutes total.** Each per-repo call is ~1–2s; the whole loop runs in well under a minute. Findings reporting goes into the Phase D summary.
+
+   Rationale: the audit script was shipped in PR #20 (issue #19) with three fingerprints validated end-to-end. Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later.
+
+5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through):
    1. Any repo not touched in 36+ hours → pick the earliest in §8 build sequence among them.
    2. Else, repo with the most `priority:high` open issues. Tie-break: earlier in build sequence.
    3. **D-007 fall-through:** if the chosen repo's *top 3 unblocked priority:high issues are all one-way decisions* (per the repo's `core_decisions_ai.md` superseded chain or "one-way" tagging in the issue body), DO NOT bail the session — instead skip that repo for this session and re-run selection on the remaining 11 repos. Repeat up to 3 fall-throughs before giving up.
@@ -50,11 +71,11 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
    §8 build sequence: llm-eval-harness → llm-cost-optimizer → prompt-regression-suite → rag-production-kit → embedding-model-shootout → chunking-strategies-lab → vector-search-at-scale → python-async-llm-pipelines → agent-orchestration-platform → mcp-server-cookbook → nextjs-streaming-ai-patterns → ai-app-integration-tests.
 
-5. **Pick the target issue.** `gh issue list --repo jt-mchorse/<r> --state open --label priority:high --json number,title`. Among `priority:high` open issues: lowest number that isn't blocked by another open issue (check body for "Blocked by #N"). Fall back to `priority:med`, then `priority:low`. If the repo has zero open issues, file one issue that fills in real README content for that repo per §2 spec (see Phase B step 5), then work on it.
+6. **Pick the target issue.** `gh issue list --repo jt-mchorse/<r> --state open --label priority:high --json number,title`. Among `priority:high` open issues: lowest number that isn't blocked by another open issue (check body for "Blocked by #N"). Fall back to `priority:med`, then `priority:low`. If the repo has zero open issues, file one issue that fills in real README content for that repo per §2 spec (see Phase B step 5), then work on it.
 
-6. **Verify alignment.** Re-read the chosen repo's `MEMORY/core_decisions_ai.md`. Does the issue conflict with any non-superseded decision? If yes, comment on the issue (`Conflicts with D-NNN; needs deliberate revisit`) and pick a different issue, OR end the session if no compatible issue exists.
+7. **Verify alignment.** Re-read the chosen repo's `MEMORY/core_decisions_ai.md`. Does the issue conflict with any non-superseded decision? If yes, comment on the issue (`Conflicts with D-NNN; needs deliberate revisit`) and pick a different issue, OR end the session if no compatible issue exists.
 
-7. **Post the session plan** as a comment on the chosen issue. Exact format:
+8. **Post the session plan** as a comment on the chosen issue. Exact format:
    ```
    **Session plan** (~75 min)
 
