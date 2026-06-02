@@ -259,6 +259,37 @@ def test_main_missing_memory_dir_errors(mod, tmp_path: Path) -> None:
     assert exit_code == 1
 
 
+def test_main_file_path_argument_errors_with_helpful_message(
+    mod, tmp_path: Path, capsys
+) -> None:
+    """Issue #23: when given a file path instead of a repo root, the script
+    must exit 1 with a clear message naming the misuse — not the cryptic
+    `<file>/MEMORY/ not found` produced by blindly joining.
+    """
+    repo = tmp_path / "fake-repo"
+    memory = repo / "MEMORY"
+    memory.mkdir(parents=True)
+    ai = memory / "full_history_ai.md"
+    ai.write_text(YAML_CONFLICT, encoding="utf-8")
+
+    exit_code = mod.main([str(ai)])
+    err = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "is a file" in err, (
+        f"Expected the error to flag the file/repo mismatch explicitly; got: {err!r}"
+    )
+    assert "MEMORY/" in err, (
+        f"Expected the error to point at the right shape (repo root containing "
+        f"MEMORY/); got: {err!r}"
+    )
+    # Critically, the legacy not-found-shape ("<arg>/MEMORY/ not found") must
+    # not appear — that's the confusing error this fix replaces.
+    assert "/MEMORY/ not found" not in err, (
+        f"Legacy confusing error still surfaces for file paths: {err!r}"
+    )
+
+
 def test_main_no_conflicts_returns_zero(mod, tmp_path: Path) -> None:
     repo = tmp_path / "clean-repo"
     memory = repo / "MEMORY"

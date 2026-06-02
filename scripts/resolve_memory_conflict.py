@@ -127,6 +127,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo = Path(args.repo_path).resolve()
+    if repo.is_file():
+        print(
+            f"error: '{args.repo_path}' is a file; pass the repo root "
+            "containing MEMORY/ instead",
+            file=sys.stderr,
+        )
+        return 1
     if not (repo / "MEMORY").is_dir():
         print(f"error: {repo}/MEMORY/ not found", file=sys.stderr)
         return 1
