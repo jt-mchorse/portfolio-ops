@@ -299,3 +299,21 @@ Three template shapes emerged:
 **Open questions / blockers:** portfolio-ops CI is currently broken (issue #15) so this PR's CI badge won't go green until that's resolved. 61 pytest pass locally.
 
 **Next session:** After the operator deals with #15 and #17, the audit script returns clean and the next session's Phase A can begin invoking it as a sanity check. SESSION_PROMPT.md wiring follow-up at that point.
+
+## 2026-06-17 — Issue #27: CI phantom failures since 2026-05-27 — actual root cause is one unquoted YAML colon
+**Duration:** ~60 min · **Branch:** `session/2026-06-17-1519-issue-27`
+
+- Phase A surfaced two ready PRs (#22, #26) blocked on phantom red CI (`statusCheckRollup=[]`, but workflow runs all completing with `conclusion=failure` and zero jobs). The pattern goes back to 2026-05-27, surviving PR #14 (delete misplaced template), PR #16 (add `workflow_dispatch`), and PR #18 (rename to `verify.yml`, never merged because it also produced 0-job runs). Initial hypothesis: stuck path-as-name workflow registration at the GitHub Actions layer. Filed #27, posted plan, opened PR #28 with a `ci.yml` → `tests.yml` rename + lock test update.
+- First push on the new branch reproduced the same 0-job phantom. Working through diagnostics (workflow_dispatch rejected by both old and new workflow ids, check-suite `latest_check_runs_count=0`), I tried parsing `tests.yml` with PyYAML and got the actual answer:
+  ```
+  yaml.scanner.ScannerError: mapping values are not allowed here
+    in tests.yml, line 37, column 25
+  ```
+  Line 37 was `run: grep -q "id: D-001" MEMORY/core_decisions_ai.md` — the colon-space inside the unquoted scalar is YAML mapping syntax. GitHub Actions' parser is lenient enough to *complete* the run (which is why prior fixes never crashed loudly), but emits zero jobs and `conclusion=failure`. PRs #14, #16, #18 all kept the broken line, so the parse failure (and the path-as-name registration that GitHub falls back to) persisted across every attempt.
+- The fix is one character: single-quote the whole `run:` value. Pushed, watched run `27700728534` (pull_request event) go `conclusion=success` with both jobs (`test` and `memory-check`) all 12 steps green — first green CI in 21 days. The `Verify D-001 baseline decision exists` step itself now runs and passes. The rename to `tests.yml` stays in the PR as opportunistic cleanup (orphans stuck workflow id `283921465`); the YAML quote is the load-bearing fix.
+
+**Why this work, this session:** Three sessions in a row reported "no priority:high open issues, portfolio is saturated." Phase A's CI hygiene check is what finally surfaced the bug. The portfolio-wide effect is large: every PR merged since 2026-05-27 was merged without real CI signal, because phantom-failure runs never populated `statusCheckRollup`.
+
+**Open questions / blockers:** none for this PR — it's CI-green and ready for review. Follow-ups: disable phantom workflows `283921465` + `284535289` via API after merge; close PR #18; rebase PR #22 and #26 onto fresh main.
+
+**Next session:** Once #28 merges, the next session's Phase A loop should re-evaluate PR #22 and #26 with their fresh CI runs. The audit_phase_a.py script could grow a new finding shape for "workflow runs completing with zero jobs across multiple SHAs" — phantom-YAML-failure is a fingerprint distinct from the three it currently checks.
