@@ -370,3 +370,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none. Test suite green, CI green, all six current workflow files validate.
 
 **Next session:** Propagate this lock pattern to the 12 portfolio repos as a follow-up sweep — they use the safer `run: |` block scalar form today, but the inverse-net should exist in every repo. Separate PR set; intentionally out of scope for this PR.
+
+## 2026-06-17 — Issue #32: audit_phase_a.py phantom-CI fingerprint
+**Duration:** ~20 min · **Branch:** `session/2026-06-17-1556-issue-32`
+
+- Added `check_phantom_ci(repo, token, threshold=3, window=5)` to `scripts/audit_phase_a.py`. Groups the last 20 push runs on main by workflow_id, counts how many have `latest_check_runs_count == 0` AND `conclusion in {failure, null}`, flags any workflow above threshold. Wired into `audit_repo()` and `format_finding()` for both text + JSON output.
+- Added an active-workflow filter: only considers workflow_ids currently `state: active` in `/actions/workflows`. Post-fix historical phantoms from disabled/deleted workflows do NOT cry wolf. Validated against portfolio-ops itself — the old `ci.yml` workflow id 283921465 (5/5 phantom runs on main history) correctly does NOT surface after PR #28 retired it.
+- 8 new test cases (98 → 106 passed): positive 3/3 failures, negative jobs-present, negative below-threshold, positive threshold-boundary, negative empty-runs, positive null-conclusion, positive /jobs-fallback for old payloads, negative active-workflow-filter for disabled-history. Reuses the existing urllib.request.urlopen monkeypatch fixture.
+
+**Why this work, this session:** PR #31's YAML lock catches the cause at PR-test time but only when a PR opens; direct-to-main commits (e.g., the `4e058f9` watchdog commit from 2026-06-01) bypass PR CI and would still be unaudited. The phantom-CI fingerprint is the post-deploy net for the same failure mode — surfacing the bug on the next Phase A pass instead of going unnoticed for weeks.
+
+**Open questions / blockers:** none. portfolio-ops dogfood returns the known stale-schedule for trending-daily (operator-blocked #17) and nothing else; llm-eval-harness returns clean.
+
+**Next session:** Phase A's audit run will surface phantom-CI if any portfolio repo regresses. The silent-rot prevention arc now covers all three layers: PR-test (test_workflows_yaml_parseable), post-deploy detection (phantom-CI fingerprint), and file-shape inverse (workflows-dir-only-active).
