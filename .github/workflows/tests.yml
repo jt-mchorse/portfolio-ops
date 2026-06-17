@@ -18,8 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install pytest
-        run: python -m pip install --quiet pytest
+      - name: Install pytest + pyyaml
+        run: python -m pip install --quiet pytest pyyaml
       - name: Run lock tests
         run: pytest tests/ -q
 
