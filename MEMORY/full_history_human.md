@@ -357,3 +357,16 @@ Three template shapes emerged:
 **Open questions / blockers:** none.
 
 **Next session:** Phantom workflows `283921465` (ci.yml orphan) and `284535289` (verify.yml orphan) — `283921465` is already auto-removed from the active list since main no longer has ci.yml; `284535289` is `disabled_manually`. No follow-up needed unless a new workflow inherits the path-as-name pattern (would surface via the YAML-parseability lock recommended in the next issue to file).
+
+## 2026-06-17 — Issue #30: YAML-parseability lock for every workflow file
+**Duration:** ~18 min · **Branch:** `session/2026-06-17-1548-issue-30`
+
+- Added `tests/test_workflows_yaml_parseable.py` parametrized over `.github/workflows/*.yml` + `workflows/*.yml`. Each workflow file gets two assertions: `yaml.safe_load()` succeeds, and the parsed dict has a non-empty `jobs:` mapping. The first catches the exact bug from PR #28; the second catches the broader "valid YAML but no work" failure mode in case GitHub Actions silently absorbs another variant the same way.
+- Inverse-net validated by feeding a scratch file with the historical bug shape (`run: grep -q "id: D-001" foo.md`) to `yaml.safe_load()` — raises `ScannerError: mapping values are not allowed here` in one line, zero call overhead. The parametrized test surfaces this exception with line/col and a failure message linking back to the silent-CI shape.
+- Updated `.github/workflows/tests.yml` install step from `pytest` to `pytest pyyaml` so the new lock runs in CI. Local count: 85 → 98 passed (+13). CI run b05f1c7d: both jobs green, all steps including the new pyyaml install.
+
+**Why this work, this session:** PR #28 closed the 21-day silent CI outage but didn't prevent the next workflow YAML drift. The lock is the next entry in the portfolio's silent-rot prevention arc, alongside the architecture-doc, README, and decision-range upper-bound locks. 30-min task that buys back permanent confidence in CI signal.
+
+**Open questions / blockers:** none. Test suite green, CI green, all six current workflow files validate.
+
+**Next session:** Propagate this lock pattern to the 12 portfolio repos as a follow-up sweep — they use the safer `run: |` block scalar form today, but the inverse-net should exist in every repo. Separate PR set; intentionally out of scope for this PR.

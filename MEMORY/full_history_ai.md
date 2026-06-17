@@ -461,3 +461,25 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-06-17T15:48Z
+duration_min: 18
+issue: 30
+focus: yaml_parseability_lock_for_every_workflow_file_inverse_safety_net_to_pr_28
+phase: day_session_phase_b_iteration_3
+delta:
+  files_added: 1   # tests/test_workflows_yaml_parseable.py
+  files_changed: 1   # .github/workflows/tests.yml (pip install adds pyyaml)
+  tests_added: 13   # 1 smoke + 6 parse-cleanly + 6 jobs-non-empty across the 6 current workflow files
+context_for_next_session:
+  - pr_28_closed_the_21_day_phantom_ci_outage_but_didnt_prevent_recurrence_pr_31_is_the_lock_that_would_have_caught_it_in_milliseconds_yaml_safe_load_per_file_plus_jobs_non_empty_assertion
+  - test_parametrized_over_glob_dot_github_workflows_star_yml_plus_workflows_star_yml_6_files_today_lock_grows_naturally_as_new_workflows_are_added
+  - inverse_net_validated_manually_with_scratch_file_containing_the_historical_bug_shape_run_grep_q_id_d_001_foo_md_yaml_safe_load_raises_scannererror_mapping_values_are_not_allowed_here_in_one_line_zero_call_overhead
+  - tests_yml_install_step_bumped_from_pytest_only_to_pytest_plus_pyyaml_so_the_lock_actually_runs_in_ci_not_just_locally
+  - test_count_85_to_98_passed_13_new_thirteen_per_file_pairs_one_parse_one_jobs_plus_one_smoke
+  - portfolio_ops_silent_rot_arc_now_workflows_dir_only_active_plus_workflow_yaml_parseable_two_invariants_at_two_per_two
+  - followup_propagate_this_lock_to_the_12_portfolio_repos_their_workflows_use_the_run_pipe_block_scalar_form_so_they_re_yaml_safe_today_but_drift_could_creep_in_any_session_separate_pr_set_not_in_scope_for_this_one
+decisions_made: []
+followups: []
+---
