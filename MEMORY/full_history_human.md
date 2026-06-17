@@ -383,3 +383,19 @@ Three template shapes emerged:
 **Open questions / blockers:** none. portfolio-ops dogfood returns the known stale-schedule for trending-daily (operator-blocked #17) and nothing else; llm-eval-harness returns clean.
 
 **Next session:** Phase A's audit run will surface phantom-CI if any portfolio repo regresses. The silent-rot prevention arc now covers all three layers: PR-test (test_workflows_yaml_parseable), post-deploy detection (phantom-CI fingerprint), and file-shape inverse (workflows-dir-only-active).
+
+## 2026-06-17 — Issue #24: Weekly audit-cron workflow
+**Duration:** ~50 min · **Branch:** `session/2026-06-17-2311-issue-24`
+
+- Added `.github/workflows/audit-cron.yml`: Monday 14:00 UTC + manual dispatch. Runs `scripts/audit_phase_a.py` against all 13 portfolio repos, then branches on the script's exit code — clean exits silently, findings file a rolling `[audit-cron]` issue (skipped if one is already open, so the cron can't pile up duplicates), and fetch errors fail the workflow loudly so the Actions tab surfaces the problem.
+- Added `tests/test_audit_cron_workflow.py` — 7 shape invariants: name, weekly cron `0 14 * * 1`, `workflow_dispatch` trigger, `issues: write` permission, script invocation, dedupe-label references appearing in both the `gh issue list` lookup and the `gh issue create` call, and a cross-lock check that `audit-cron.yml` is also in the sister `EXPECTED_ACTIVE_WORKFLOWS` tuple. Each assertion's failure message explains the silent-failure mode it protects against.
+- Extended `tests/test_workflows_dir_only_active.py`'s `EXPECTED_ACTIVE_WORKFLOWS` with `"audit-cron.yml"` so the inverse lock keeps agreeing.
+- Created the `audit-cron` GitHub label out-of-band so `gh issue create --label audit-cron` works the very first time the cron fires.
+
+**Why this work, this session:** PR #22 wired `audit_phase_a.py` into Phase A of `SESSION_PROMPT.md` so every autonomous session runs the audit. But the script only catches silent rot at session cadence — a week-long gap (operator on vacation, runner offline) reverts to open-ended exposure. The weekly cron is the post-deploy net for that case.
+
+**Design pivot from issue spec.** Issue #24 said to host the workflow in `llm-eval-harness` because portfolio-ops' own workflows were stuck-registered at filing. That premise broke this morning: PR #28 root-caused the YAML parse error (`grep -q "id: D-001" ...` had an unquoted colon-space) and got the first green CI run in 21 days; PR #31 added the YAML-parseability lock so the failure mode can't silently recur. Hosting the cron in portfolio-ops removes the cross-repo PAT requirement, lets the lock test read the workflow file directly, and avoids scope intrusion on `llm-eval-harness`. Reversible — moving the file later is one PR. Rationale documented in the session-plan comment on #24.
+
+**Open questions / blockers:** none. Local pytest 109 → 116 (+7), all green. Post-merge plan: trigger `workflow_dispatch` once to confirm the end-to-end path. Expected first-run behavior: the cron finds the known operator-blocked stale-schedule on portfolio-ops `trending-daily` (issue #17) and files an `[audit-cron]` rolling issue referencing it. JT can close that issue tying it back to #17. Subsequent weeks no-op until something new rots.
+
+**Next session:** If the rolling-issue cadence becomes noisy across a few weekly runs, add the deferred fingerprint-hash dedupe (compare normalized findings to the prior open issue's body; only file if the fingerprint differs). For now, the simpler one-at-a-time gate matches priority:low scope.
