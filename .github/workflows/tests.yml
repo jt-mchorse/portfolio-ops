@@ -34,4 +34,4 @@ jobs:
           test -f MEMORY/core_decisions_ai.md
           test -f MEMORY/core_decisions_human.md
       - name: Verify D-001 baseline decision exists
-        run: grep -q "id: D-001" MEMORY/core_decisions_ai.md
+        run: 'grep -q "id: D-001" MEMORY/core_decisions_ai.md'
