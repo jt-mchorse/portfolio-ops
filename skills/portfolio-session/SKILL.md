@@ -97,12 +97,15 @@ Then:
 
 ## Selecting which repo to work this session
 
+**Priority tier (D-009).** Five repos are worked *more often* than the rest — `llm-cost-optimizer`, `llm-eval-harness`, `rag-production-kit`, `chunking-strategies-lab`, `nextjs-streaming-ai-patterns`. They get a tighter freshness floor and win every tie-break. The other 8 repos are deprioritized, not dropped — they still get worked on the normal cadence. The canonical, authoritative selection rules with exact hour thresholds live in `session-runner/SESSION_PROMPT.md` Phase A step 5; the list below is the summary.
+
 When Cowork runs on a schedule and needs to pick a repo:
 
 1. Check `portfolio-ops/MEMORY/full_history_ai.md` for last-touched timestamps per repo.
-2. Find any repo not touched in 7+ days. Pick it. (Enforces the weekly-touch floor.)
-3. If all repos are within 7 days, pick the one with the most `priority:high` open issues.
-4. If still tied, pick the earlier repo in the build sequence (handoff §8).
+2. Find any **priority-tier** repo not touched in 18+ hours. Pick the earliest in build sequence among those.
+3. Else find any repo not touched in 7+ days. Pick it. (Enforces the weekly-touch floor.) If a priority-tier repo also qualifies, take it first.
+4. If all repos are fresh, pick the one with the most `priority:high` open issues.
+5. If still tied, prefer a priority-tier repo, then the earlier repo in the build sequence (handoff §8).
 
 ## Multi-repo session days
 

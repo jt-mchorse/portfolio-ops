@@ -63,11 +63,18 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
    Rationale: the audit script was shipped in PR #20 (issue #19) with three fingerprints validated end-to-end. Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later.
 
-5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through):
-   1. Any repo not touched in 36+ hours → pick the earliest in §8 build sequence among them.
-   2. Else, repo with the most `priority:high` open issues. Tie-break: earlier in build sequence.
-   3. **D-007 fall-through:** if the chosen repo's *top 3 unblocked priority:high issues are all one-way decisions* (per the repo's `core_decisions_ai.md` superseded chain or "one-way" tagging in the issue body), DO NOT bail the session — instead skip that repo for this session and re-run selection on the remaining 11 repos. Repeat up to 3 fall-throughs before giving up.
-   4. **Skip set is durable for this run.** Once a repo is in the skip set, leave a one-line comment on the blocking issue: `Session skipped due to one-way decision blocker D-NNN. JT decision needed.` — but only if the same comment isn't already on the issue from a recent session.
+5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through + D-009 priority tier):
+
+   **Priority tier (D-009).** These 5 repos are worked *more often* than the rest — they get a tighter freshness floor (18h vs 36h) and win every tie-break. The other 8 repos are still worked regularly; they are deprioritized, not dropped.
+   `llm-cost-optimizer`, `llm-eval-harness`, `rag-production-kit`, `chunking-strategies-lab`, `nextjs-streaming-ai-patterns`.
+
+   1. **Priority-tier staleness first:** any priority-tier repo not touched in 18+ hours → pick the earliest in §8 build sequence among those.
+   2. Else, any repo not touched in 36+ hours → pick the earliest in §8 build sequence among them; if both a priority-tier and a non-tier repo qualify, **take the priority-tier repo first**.
+   3. Else, repo with the most `priority:high` open issues. Tie-break: **priority-tier repo first**, then earlier in build sequence.
+   4. **D-007 fall-through:** if the chosen repo's *top 3 unblocked priority:high issues are all one-way decisions* (per the repo's `core_decisions_ai.md` superseded chain or "one-way" tagging in the issue body), DO NOT bail the session — instead skip that repo for this session and re-run selection on the remaining 12 repos. Repeat up to 3 fall-throughs before giving up.
+   5. **Skip set is durable for this run.** Once a repo is in the skip set, leave a one-line comment on the blocking issue: `Session skipped due to one-way decision blocker D-NNN. JT decision needed.` — but only if the same comment isn't already on the issue from a recent session.
+
+   **Multi-issue loop bias (D-009).** When the run loops back to selection after closing an issue, the 18h floor on priority-tier repos trips first, so they naturally recur sooner. Within a single run, prefer to keep working priority-tier repos while they have actionable unblocked issues; rotate to a non-tier repo once the priority tier is exhausted or all priority-tier work for this run is blocked.
 
    §8 build sequence: llm-eval-harness → llm-cost-optimizer → prompt-regression-suite → rag-production-kit → embedding-model-shootout → chunking-strategies-lab → vector-search-at-scale → python-async-llm-pipelines → agent-orchestration-platform → mcp-server-cookbook → nextjs-streaming-ai-patterns → ai-app-integration-tests.
 

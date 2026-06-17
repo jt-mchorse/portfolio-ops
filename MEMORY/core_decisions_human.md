@@ -105,3 +105,18 @@ Strategic decisions for this repo, with reasoning. Append-only — superseded de
 **Reversibility:** Cheap — edit the cap arithmetic in run-session.sh.
 
 **Related issues:** —
+
+## D-009 — Priority tier of 5 repos worked more often (2026-06-17)
+**Decision:** Five repos form a priority tier and are worked *more often* than the other eight: `llm-cost-optimizer`, `llm-eval-harness`, `rag-production-kit`, `chunking-strategies-lab`, `nextjs-streaming-ai-patterns`. Mechanism (see `session-runner/SESSION_PROMPT.md` Phase A step 5): a tighter freshness floor (18h, vs 36h for the rest) so they become eligible for "stale" selection sooner, they win every selection tie-break, and within a multi-issue run the loop is biased to keep working priority-tier repos while they have actionable unblocked issues. The other eight repos are **deprioritized, not dropped** — they continue to be worked on the normal cadence whenever no priority-tier repo needs attention.
+
+**Why:** JT asked for these five to be updated more often than the others, while keeping the rest in rotation.
+
+**Alternatives considered:**
+- Work only these five exclusively — rejected; JT explicitly said the other repos still need updating, just less often.
+- Keep equal cadence for all thirteen — rejected; that's the status quo JT asked to change.
+
+**Reversibility:** Cheap — remove the priority-tier block from SESSION_PROMPT.md step 5 and the portfolio-session SKILL selection section.
+
+**Related issues:** —
+
+*Note: JT referred to the fifth repo as "next-js-streaming-ai-patterns"; the canonical repo name is `nextjs-streaming-ai-patterns`.*

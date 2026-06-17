@@ -74,3 +74,15 @@
   reversibility: cheap
   related_issues: []
   superseded_by: null
+
+- id: D-009
+  date: 2026-06-17
+  decision: priority_tier_of_5_repos_worked_more_often
+  priority_tier_repos: [llm-cost-optimizer, llm-eval-harness, rag-production-kit, chunking-strategies-lab, nextjs-streaming-ai-patterns]
+  mechanism: tighter_freshness_floor_18h_vs_36h_plus_win_all_tie_breaks_plus_multi_issue_loop_bias
+  rationale: jt_requested_these_5_be_updated_more_often_than_the_other_8_which_remain_worked_just_deprioritized
+  alternatives_rejected: [exclusive_focus_only_these_5, equal_cadence_for_all_13]
+  reversibility: cheap
+  related_issues: []
+  superseded_by: null
+  # note: jt wrote "next-js-streaming-ai-patterns"; canonical repo is nextjs-streaming-ai-patterns
