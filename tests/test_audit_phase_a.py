@@ -450,3 +450,163 @@ def test_check_phantom_ci_skips_disabled_workflow_phantom_history(audit_module):
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
         findings = audit_module.check_phantom_ci("portfolio-ops", token=None)
     assert findings == []
+
+
+# ---------------------------------------------------------------------------
+# missing-timeout (#35)
+# ---------------------------------------------------------------------------
+
+
+def _b64(text: str) -> str:
+    import base64
+
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
+_WORKFLOW_ALL_GUARDED = """\
+name: ci
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo lint
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo test
+"""
+
+_WORKFLOW_ONE_UNGUARDED = """\
+name: ci
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo lint
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo test
+"""
+
+_WORKFLOW_ALL_UNGUARDED = """\
+name: ci
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo lint
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo test
+  memory-check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo memory
+"""
+
+
+def test_check_missing_timeout_clean_when_all_guarded(audit_module):
+    """A workflow whose jobs all set timeout-minutes should produce no finding."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_GUARDED)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_timeout("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_missing_timeout_flags_single_unguarded_job(audit_module):
+    """A workflow with one unguarded job should surface that job specifically."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ONE_UNGUARDED)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_timeout("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["kind"] == "missing-timeout"
+    assert findings[0]["jobs_missing"] == ["test"]
+    assert findings[0]["workflow_name"] == "ci"
+
+
+def test_check_missing_timeout_flags_all_unguarded_jobs(audit_module):
+    """A workflow with every job unguarded should list every job (sorted)."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_timeout("anyrepo", token=None)
+    assert len(findings) == 1
+    # sorted() applies — alphabetical order, not source order.
+    assert findings[0]["jobs_missing"] == ["lint", "memory-check", "test"]
+
+
+def test_check_missing_timeout_skips_disabled_workflows(audit_module):
+    """Disabled workflows are skipped — operator chose to disable; not silent rot."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {"id": 1, "name": "old", "path": ".github/workflows/old.yml", "state": "disabled_manually"},
+            ]
+        },
+        "contents/.github/workflows/old.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_timeout("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_missing_timeout_skips_when_pyyaml_missing(audit_module, capsys):
+    """If pyyaml isn't importable, return [] and emit a stderr note.
+
+    Other fingerprints must continue to work (stdlib-only); the script
+    must not hard-fail on a missing optional import.
+    """
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
+    }
+    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("simulated missing pyyaml")
+        return real_import(name, *args, **kwargs)
+
+    import builtins
+
+    with (
+        patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)),
+        patch.object(builtins, "__import__", side_effect=fake_import),
+    ):
+        findings = audit_module.check_missing_timeout("anyrepo", token=None)
+    assert findings == []
+    err = capsys.readouterr().err
+    assert "pyyaml not installed" in err
+    assert "anyrepo" in err

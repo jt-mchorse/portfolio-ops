@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase A operational-health audit.
 
-Catches four silent-rot fingerprints across the 13 portfolio repos:
+Catches five silent-rot fingerprints across the 13 portfolio repos:
 
 1. paired-failure  — a single push-event SHA produces multiple workflow runs
                      with conflicting conclusions (one success + one failure).
@@ -23,9 +23,19 @@ Catches four silent-rot fingerprints across the 13 portfolio repos:
                      YAML parse error that GitHub Actions silently absorbs
                      (#27 / #28: 21 days of phantom failures, statusCheckRollup
                      empty so PR auto-merge couldn't see them).
+5. missing-timeout — a workflow with `>= 1` job whose `timeout-minutes` is
+                     not set. GitHub Actions defaults to 360 min/job in
+                     that case, so a hung job burns the full 6-hour ceiling
+                     before being killed (#35; canonical per-repo lock at
+                     llm-eval-harness#62 etc.).
 
-Stdlib-only (urllib.request + json). Optional `GH_TOKEN` env for higher rate
-limit; unauth works for public repos with lower quota.
+Mostly stdlib (urllib.request + json). The missing-timeout fingerprint is
+the one exception — it lazy-imports `yaml` and degrades to "no findings"
+plus a stderr note if pyyaml is not installed. The other four checks
+remain stdlib-only and run regardless.
+
+Optional `GH_TOKEN` env for higher rate limit; unauth works for public
+repos with lower quota.
 
 Exit codes:
   0  no findings (clean)
@@ -249,12 +259,94 @@ def _phantom_run(run: dict, token: str | None, repo: str) -> bool:
     return jobs_data.get("total_count", 0) == 0
 
 
+def check_missing_timeout(repo: str, token: str | None) -> list[dict]:
+    """Flag active workflows with one or more jobs missing `timeout-minutes`.
+
+    GitHub Actions defaults to 360 min/job when `timeout-minutes` is unset.
+    A hung job (network stall, infinite test loop, stuck API call) burns the
+    full 6-hour ceiling before the runner kills it — quota the operator pays
+    for regardless of output.
+
+    Per-repo lock tests (e.g., `tests/test_workflows_timeout_minutes.py`
+    seeded by llm-eval-harness#62) catch this on a PR-test basis once the
+    lock has been propagated. This fingerprint is the cross-repo post-deploy
+    net: every repo whose workflows lack the guard gets surfaced until the
+    lock lands.
+
+    pyyaml is lazy-imported here and the check returns an empty findings
+    list (plus a stderr note) when pyyaml is unavailable, so the other four
+    checks remain stdlib-only and the script never hard-fails on a missing
+    import.
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
+        print(
+            f"skipping missing-timeout for {repo}: pyyaml not installed",
+            file=sys.stderr,
+        )
+        return []
+
+    workflows_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/actions/workflows", token)
+    findings: list[dict] = []
+    for wf in workflows_data.get("workflows", []):
+        if wf.get("state") != "active":
+            continue
+        wf_path = wf.get("path", "")
+        wf_name = wf.get("name", "")
+        try:
+            content_data = _gh_get(
+                f"/repos/{REPO_OWNER}/{repo}/contents/{wf_path}",
+                token,
+            )
+        except urllib.error.HTTPError:
+            # If we can't read the file, skip rather than false-positive.
+            continue
+        encoded = content_data.get("content", "")
+        if not encoded:
+            continue
+        import base64
+
+        try:
+            text = base64.b64decode(encoded).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            continue
+        try:
+            parsed = yaml.safe_load(text)
+        except yaml.YAMLError:
+            # Unparseable YAML is the phantom-ci/parseability fingerprint's job.
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        jobs = parsed.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        missing: list[str] = []
+        for job_id, body in jobs.items():
+            if not isinstance(body, dict):
+                continue
+            if "timeout-minutes" not in body:
+                missing.append(str(job_id))
+        if missing:
+            findings.append(
+                {
+                    "kind": "missing-timeout",
+                    "repo": repo,
+                    "workflow_name": wf_name,
+                    "workflow_path": wf_path,
+                    "jobs_missing": sorted(missing),
+                }
+            )
+    return findings
+
+
 def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings: list[dict] = []
     findings.extend(check_paired_failure(repo, token))
     findings.extend(check_stuck_registration(repo, token))
     findings.extend(check_stale_schedule(repo, token))
     findings.extend(check_phantom_ci(repo, token))
+    findings.extend(check_missing_timeout(repo, token))
     return findings
 
 
@@ -282,6 +374,13 @@ def format_finding(f: dict) -> str:
             f"  [{kind}] {repo}: workflow {f['workflow_name']!r} (id {f['workflow_id']}) "
             f"has {f['phantom_count']}/{f['window']} zero-job push runs on main "
             f"(sample SHAs: {samples})"
+        )
+    if kind == "missing-timeout":
+        jobs = ", ".join(f["jobs_missing"])
+        return (
+            f"  [{kind}] {repo}: workflow {f['workflow_name']!r} "
+            f"({f['workflow_path']}) has {len(f['jobs_missing'])} job(s) without "
+            f"`timeout-minutes`: {jobs}"
         )
     return f"  [{kind}] {repo}: {f}"
 
