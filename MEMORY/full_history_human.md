@@ -344,3 +344,16 @@ Three template shapes emerged:
 **Open questions / blockers:** None for this issue. Issue #25 (substring false positive) noted but deliberately deferred.
 
 **Next session:** PR #26 lands in Phase A. The next session's Phase A audit (now running from protocol post-#22) will validate the wired-in step works end-to-end.
+
+## 2026-06-17 — Issue #25: resolve_memory_conflict prose-marker false positive
+**Duration:** ~15 min · **Branch:** `session/2026-06-17-1543-issue-25`
+
+- Replaced the two substring `<<<<<<<` checks in `_process()` (early bailout and post-resolve invariant) with `CONFLICT.search(...)` calls. The compiled regex was already the truth for the actual `sub()` pass; the substring shortcut was a cheap approximation that misclassified prose mentions as conflicts.
+- Added `test_main_prose_mention_of_marker_is_no_op` covering the shape end-to-end via `tmp_path` — both markers present as Markdown code spans, no `=======` separator, asserted as a no-op exit 0 with the file unchanged. All 85 tests pass.
+- Dogfood: `python3 scripts/resolve_memory_conflict.py .` on portfolio-ops now prints `no conflicts found` and exits 0, instead of the prior "Conflict markers remain… Inspect manually" raise.
+
+**Why this work, this session:** Issue #25 was filed priority:low during issue #23 dogfooding but bit me twice during today's PR #22 and PR #26 rebases — the script bailed on `MEMORY/full_history_human.md` and I had to hand-edit the conflict markers each time. Fix shipped now so the next rebase that hits a memory conflict on this file completes hands-off.
+
+**Open questions / blockers:** none.
+
+**Next session:** Phantom workflows `283921465` (ci.yml orphan) and `284535289` (verify.yml orphan) — `283921465` is already auto-removed from the active list since main no longer has ci.yml; `284535289` is `disabled_manually`. No follow-up needed unless a new workflow inherits the path-as-name pattern (would surface via the YAML-parseability lock recommended in the next issue to file).
