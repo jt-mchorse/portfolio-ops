@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase A operational-health audit.
 
-Catches three silent-rot fingerprints across the 13 portfolio repos:
+Catches four silent-rot fingerprints across the 13 portfolio repos:
 
 1. paired-failure  — a single push-event SHA produces multiple workflow runs
                      with conflicting conclusions (one success + one failure).
@@ -16,6 +16,13 @@ Catches three silent-rot fingerprints across the 13 portfolio repos:
                      runs and no successes between them. This is the shape
                      of secret-missing or upstream-broken cron jobs that
                      pile up unnoticed (#17).
+4. phantom-ci      — a workflow with `>= N` of the last `M` push runs on main
+                     completing with `latest_check_runs_count == 0` and
+                     `conclusion in {failure, null}`. The actions runner
+                     started, failed, did no work. This is the shape of a
+                     YAML parse error that GitHub Actions silently absorbs
+                     (#27 / #28: 21 days of phantom failures, statusCheckRollup
+                     empty so PR auto-merge couldn't see them).
 
 Stdlib-only (urllib.request + json). Optional `GH_TOKEN` env for higher rate
 limit; unauth works for public repos with lower quota.
@@ -162,11 +169,92 @@ def check_stale_schedule(repo: str, token: str | None, threshold: int = 3) -> li
     return findings
 
 
+def check_phantom_ci(
+    repo: str,
+    token: str | None,
+    threshold: int = 3,
+    window: int = 5,
+) -> list[dict]:
+    """Flag workflows whose last `window` push runs on main are `>= threshold` phantom.
+
+    A "phantom" run is one with `latest_check_runs_count == 0` (no jobs were
+    actually scheduled) AND `conclusion in {failure, null}`. That's the actions
+    runner reporting "I started, I failed, I did no work" — pathological by
+    definition, and the exact shape that hid #27's 21-day YAML parse outage.
+
+    A single phantom run is not enough signal (transient cancels can look the
+    same). The pattern signal is `>= threshold` phantoms among the most recent
+    `window` push runs to main for a given workflow.
+    """
+    # Pull active workflow ids so post-fix historical phantom runs from
+    # disabled/deleted workflows don't keep crying wolf after the bug is gone.
+    workflows_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/actions/workflows", token)
+    active_ids = {
+        wf["id"] for wf in workflows_data.get("workflows", []) if wf.get("state") == "active"
+    }
+    data = _gh_get(
+        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch=main&per_page=20",
+        token,
+    )
+    runs = data.get("workflow_runs", [])
+    # Group by workflow id, take the last `window` per workflow.
+    by_wf: dict[int, list[dict]] = defaultdict(list)
+    for run in runs:
+        wf_id = run.get("workflow_id")
+        if wf_id is None or wf_id not in active_ids:
+            continue
+        if len(by_wf[wf_id]) < window:
+            by_wf[wf_id].append(run)
+    findings = []
+    for wf_id, wf_runs in by_wf.items():
+        phantoms = [
+            r
+            for r in wf_runs
+            if r.get("conclusion") in (None, "failure")
+            and _phantom_run(r, token, repo)
+        ]
+        if len(phantoms) >= threshold:
+            findings.append(
+                {
+                    "kind": "phantom-ci",
+                    "repo": repo,
+                    "workflow_id": wf_id,
+                    "workflow_name": wf_runs[0].get("name", ""),
+                    "phantom_count": len(phantoms),
+                    "window": len(wf_runs),
+                    "sample_shas": [r["head_sha"][:8] for r in phantoms[:3]],
+                }
+            )
+    return findings
+
+
+def _phantom_run(run: dict, token: str | None, repo: str) -> bool:
+    """Return True if this run has no jobs (zero-job phantom failure).
+
+    Uses the run-attached `latest_check_runs_count` when the API surfaces it;
+    falls back to a single `/jobs` call when the field is missing (older
+    list-runs payloads omit it).
+    """
+    count = run.get("latest_check_runs_count")
+    if count is not None:
+        return count == 0
+    try:
+        jobs_data = _gh_get(
+            f"/repos/{REPO_OWNER}/{repo}/actions/runs/{run['id']}/jobs",
+            token,
+        )
+    except urllib.error.HTTPError:
+        # If we cannot read jobs, assume not phantom (avoid false positives).
+        return False
+    return jobs_data.get("total_count", 0) == 0
+
+
 def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings: list[dict] = []
     findings.extend(check_paired_failure(repo, token))
     findings.extend(check_stuck_registration(repo, token))
     findings.extend(check_stale_schedule(repo, token))
+    findings.extend(check_phantom_ci(repo, token))
     return findings
 
 
@@ -187,6 +275,13 @@ def format_finding(f: dict) -> str:
         return (
             f"  [{kind}] {repo}: {f['name']} ({f['workflow_path']}) "
             f"has {f['consecutive_failures']} consecutive failures"
+        )
+    if kind == "phantom-ci":
+        samples = ", ".join(f["sample_shas"])
+        return (
+            f"  [{kind}] {repo}: workflow {f['workflow_name']!r} (id {f['workflow_id']}) "
+            f"has {f['phantom_count']}/{f['window']} zero-job push runs on main "
+            f"(sample SHAs: {samples})"
         )
     return f"  [{kind}] {repo}: {f}"
 
