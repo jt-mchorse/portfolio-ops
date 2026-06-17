@@ -1,0 +1,86 @@
+name: audit-cron
+
+# Continuous silent-rot check for the 13 portfolio repos, independent of
+# session cadence. Runs weekly even if no autonomous session fires that week
+# (operator on vacation, runner offline, etc.) so silent rot is caught on a
+# 7-day worst case instead of an open-ended one.
+#
+# Spec: portfolio-ops#24. Lock test: tests/test_audit_cron_workflow.py.
+
+on:
+  schedule:
+    # Mondays 07:00 PT (14:00 UTC). Lands a day before JT's Monday digest
+    # review so a fresh issue is visible at the top of the inbox.
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run silent-rot audit
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          python3 scripts/audit_phase_a.py | tee audit.txt
+          rc=${PIPESTATUS[0]}
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          # Don't fail the step here — the next steps fan out on exit code.
+          exit 0
+
+      - name: File rolling issue (findings, no open audit-cron issue)
+        if: steps.audit.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          existing=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --label audit-cron \
+            --json number \
+            --jq 'length')
+          if [ "$existing" -gt 0 ]; then
+            echo "An open [audit-cron] issue already exists; skipping new file."
+            exit 0
+          fi
+          {
+            echo "## Silent-rot audit findings"
+            echo ""
+            echo "Triggered by \`audit-cron.yml\` at $(date -u +'%Y-%m-%dT%H:%M:%SZ')."
+            echo ""
+            echo "**Run log:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "### Findings"
+            echo ""
+            echo '```'
+            cat audit.txt
+            echo '```'
+            echo ""
+            echo "_Filed automatically. Investigate each finding, fix or document, then close this issue. The cron will not file another until this one is closed._"
+          } > body.md
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "[audit-cron] silent-rot findings $(date -u +%Y-%m-%d)" \
+            --label audit-cron \
+            --label priority:med \
+            --body-file body.md
+
+      - name: Fail workflow on fetch/network error
+        if: steps.audit.outputs.exit_code == '2'
+        run: |
+          echo "::error::audit_phase_a.py returned exit 2 (fetch/network error); not filing an issue. The Actions tab failure surfaces this. Re-run manually if persistent."
+          exit 1

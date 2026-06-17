@@ -35,7 +35,11 @@ TEMPLATES_DIR = REPO_ROOT / "workflows"
 # silently produced 0-job phantom failures on every push since 2026-05-27).
 # trending-daily.yml / trending-weekly.yml = scheduled scanners that file
 # issues across the 12 portfolio repos (in repo since bootstrap).
+# audit-cron.yml = weekly post-deploy net for silent rot (#24) — fires the
+# audit_phase_a.py script on a Monday cadence so the 7+ day session-less
+# window can't hide what Phase A's audit (#21) would have caught.
 EXPECTED_ACTIVE_WORKFLOWS = (
+    "audit-cron.yml",
     "tests.yml",
     "trending-daily.yml",
     "trending-weekly.yml",
