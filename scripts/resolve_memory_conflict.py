@@ -95,10 +95,14 @@ def _process(path: Path, resolver, dry_run: bool) -> bool:
     if not path.is_file():
         return False
     original = path.read_text(encoding="utf-8")
-    if "<<<<<<<" not in original:
+    # Use the full CONFLICT regex (not a substring check) so prose mentions of
+    # the marker token in MEMORY/ files don't trigger false positives. The
+    # substring shortcut was the source of issue #25 — portfolio-ops' own
+    # MEMORY/full_history_human.md documents the marker shape in prose.
+    if not CONFLICT.search(original):
         return False
     resolved = resolver(original)
-    if "<<<<<<<" in resolved:
+    if CONFLICT.search(resolved):
         raise RuntimeError(
             f"Conflict markers remain in {path} after resolution; shape did "
             "not match the expected append-only pattern. Inspect manually."

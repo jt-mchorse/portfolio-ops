@@ -297,3 +297,32 @@ def test_main_no_conflicts_returns_zero(mod, tmp_path: Path) -> None:
     (memory / "full_history_ai.md").write_text("clean content\n", encoding="utf-8")
     (memory / "full_history_human.md").write_text("clean content\n", encoding="utf-8")
     assert mod.main([str(repo)]) == 0
+
+
+def test_main_prose_mention_of_marker_is_no_op(mod, tmp_path: Path) -> None:
+    """Issue #25: substring shortcut produced a false positive on prose mentions.
+
+    portfolio-ops' own MEMORY/full_history_human.md documents the conflict-marker
+    shape in prose (the session writeup describing how the resolver works). With
+    the old `if "<<<<<<<" in original` shortcut, the resolver would early-bailout-
+    no-match, then the post-resolve substring check would re-fire on the same
+    prose match and raise "Conflict markers remain". With the regex-based check
+    the file is correctly seen as having no full-shape conflicts: no-op exit 0,
+    no error, no file rewrite.
+    """
+    repo = tmp_path / "prose-repo"
+    memory = repo / "MEMORY"
+    memory.mkdir(parents=True)
+    ai_path = memory / "full_history_ai.md"
+    human_path = memory / "full_history_human.md"
+    ai_path.write_text("clean ai content\n", encoding="utf-8")
+    human_prose = (
+        "## Notes on the resolver\n"
+        "The opener `<<<<<<< HEAD` and trailer `>>>>>>>` are written as prose\n"
+        "here for documentation purposes, not as an actual conflict.\n"
+    )
+    human_path.write_text(human_prose, encoding="utf-8")
+
+    assert mod.main([str(repo)]) == 0
+    # Round-trip: the prose file should be unchanged.
+    assert human_path.read_text(encoding="utf-8") == human_prose
