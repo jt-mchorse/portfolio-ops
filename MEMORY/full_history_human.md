@@ -399,3 +399,18 @@ Three template shapes emerged:
 **Open questions / blockers:** none. Local pytest 109 → 116 (+7), all green. Post-merge plan: trigger `workflow_dispatch` once to confirm the end-to-end path. Expected first-run behavior: the cron finds the known operator-blocked stale-schedule on portfolio-ops `trending-daily` (issue #17) and files an `[audit-cron]` rolling issue referencing it. JT can close that issue tying it back to #17. Subsequent weeks no-op until something new rots.
 
 **Next session:** If the rolling-issue cadence becomes noisy across a few weekly runs, add the deferred fingerprint-hash dedupe (compare normalized findings to the prior open issue's body; only file if the fingerprint differs). For now, the simpler one-at-a-time gate matches priority:low scope.
+
+## 2026-06-17 — Issue #35: missing-timeout fingerprint in audit_phase_a.py
+**Duration:** ~30 min · **Branch:** `session/2026-06-17-2329-issue-35`
+
+- Added `check_missing_timeout(repo, token)` as the fifth silent-rot fingerprint. Lists active workflows via `/actions/workflows`, fetches each YAML via `/contents/<path>`, base64-decodes, `yaml.safe_load`s, walks `jobs:`, flags any without `timeout-minutes`.
+- `yaml` is lazy-imported inside the new check; if pyyaml isn't installed the check returns `[]` plus a stderr note, so the other four fingerprints keep working stdlib-only. Docstring updated to call out the soft-constraint relaxation.
+- Wired into `audit_repo` + `format_finding`. New finding shape: `{kind, repo, workflow_name, workflow_path, jobs_missing: [...]}`.
+- 5 new tests: all-guarded (clean), one-unguarded, all-unguarded (sorted output), disabled-skipped, and pyyaml-missing (with capsys stderr assertion).
+- Dogfood vs four live repos: llm-eval-harness (PR #63 pending) → 2 findings; rag-production-kit (unprotected) → 2 findings. Confirmed correct discrimination — once each session-PR merges, that repo drops out of the finding set automatically.
+
+**Why this work, this session:** the per-repo lock propagation pattern works but takes one PR per repo. With 9 repos still unguarded after three propagations this session, the audit-side fingerprint is the cross-repo post-deploy net: the weekly audit-cron (PR #34) surfaces every remaining unguarded job until the lock is fully propagated. Higher leverage than any single per-repo PR.
+
+**Open questions / blockers:** none. 106 → 111 pytest passes. PR #36 open. After PR #34 (audit-cron.yml) lands, a small follow-up adds `pip install pyyaml` to its install step — until then, the cron would log a "pyyaml not installed" stderr note for the missing-timeout check and continue cleanly with the other four.
+
+**Next session:** propagate the timeout-minutes lock to the remaining 9 repos (rag-production-kit, embedding-model-shootout, chunking-strategies-lab, vector-search-at-scale, python-async-llm-pipelines, agent-orchestration-platform, mcp-server-cookbook, nextjs-streaming-ai-patterns, ai-app-integration-tests). The audit-cron will surface them weekly until they're done.
