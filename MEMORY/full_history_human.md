@@ -414,3 +414,40 @@ Three template shapes emerged:
 **Open questions / blockers:** none. 106 → 111 pytest passes. PR #36 open. After PR #34 (audit-cron.yml) lands, a small follow-up adds `pip install pyyaml` to its install step — until then, the cron would log a "pyyaml not installed" stderr note for the missing-timeout check and continue cleanly with the other four.
 
 **Next session:** propagate the timeout-minutes lock to the remaining 9 repos (rag-production-kit, embedding-model-shootout, chunking-strategies-lab, vector-search-at-scale, python-async-llm-pipelines, agent-orchestration-platform, mcp-server-cookbook, nextjs-streaming-ai-patterns, ai-app-integration-tests). The audit-cron will surface them weekly until they're done.
+
+## 2026-06-18 — Issue #38: timeout-minutes guard + lock test (final hop)
+**Duration:** ~25 min · **Branch:** `session/2026-06-18-0341-issue-38`
+
+- Added `timeout-minutes: 15` to all 5 jobs across 4 workflow files:
+  `audit-cron.yml::audit`, `tests.yml::test`, `tests.yml::memory-check`,
+  `trending-daily.yml::scan`, `trending-weekly.yml::scan`.
+- Added `tests/test_workflows_timeout_minutes.py` — 16 new tests
+  (1 smoke + 5 jobs × 3 parametrized invariants: present, integer,
+  in band `[1, 30]`).
+
+**Why this work, this session:** eleventh and final hop in the
+portfolio-wide `timeout-minutes` silent-rot propagation arc. This file
+is the **inverse safety net** to the audit-side fingerprint shipped in
+#36 (`audit_phase_a.py --check missing-timeout`) — both layers protect
+the same invariant at two cadences. The audit catches portfolio-wide
+drift post-deploy (weekly cron); this lock catches regressions at
+PR-test time before merge, with a loud local failure that names the
+offending job. The two-layer pattern is symmetric with the silent-CI
+arc that landed earlier this year (`test_workflows_yaml_parseable.py`
+#30/#31 pre-merge + `audit_phase_a.py --check phantom-ci` #32
+post-deploy).
+
+**Open questions / blockers:** none. Test count 121 → 137 (+16,
+no regressions). Audit reads from GitHub API which still shows the
+pre-merge workflow file shape; post-merge re-run will report clean for
+`missing-timeout` (the existing `stale-schedule` on `trending-daily`
+from operator-blocked #17 will remain).
+
+**Next session:** the silent-rot arc now has two complete invariants
+each protected by both a pre-merge lock and a post-deploy audit
+fingerprint, across all 12 portfolio repos plus this audit-authority
+repo. Future silent-rot work should follow this same two-layer shape.
+The natural next invariant to add (after #28 closed the unquoted
+colon-space outage) is a check that `statusCheckRollup` isn't empty
+on a completed-failure run — the exact phantom-CI shape we already
+catch in audit but don't yet have a pre-merge lock for.

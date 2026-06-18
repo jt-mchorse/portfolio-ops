@@ -550,3 +550,26 @@ context_for_next_session:
 followups: []
 decisions_made: []
 ---
+
+---
+session: 2026-06-18T03:41Z
+duration_min: 25
+issue: 38
+focus: workflow_timeout_minutes_lock_final_hop_eating_own_dogfood
+phase: night_session_phase_b_iteration_10_arc_close
+delta:
+  files_added: 1   # tests/test_workflows_timeout_minutes.py
+  files_changed: 4 # 4 workflow files
+  tests_added: 16  # 1 smoke + 5 jobs * 3 invariants
+context_for_next_session:
+  - eleventh_and_final_hop_in_portfolio_wide_timeout_minutes_propagation_arc_eating_own_dogfood_on_the_audit_authority_repo
+  - all_5_jobs_across_4_workflow_files_uniformly_15_min_no_outliers_warranted_today_audit_runs_in_lt_2_min_pytest_in_lt_30s_trending_scans_in_lt_3_min
+  - inverse_safety_net_to_audit_side_fingerprint_36_two_layers_same_invariant_at_two_cadences_pre_merge_lock_plus_post_deploy_weekly_audit_symmetric_with_silent_ci_arc_yaml_parseable_30_31_plus_phantom_ci_32
+  - lock_test_docstring_calls_out_the_two_layer_pattern_explicitly_for_future_silent_rot_arcs_to_follow_same_shape
+  - test_count_121_to_137_plus_16_no_regressions_full_pytest_clean
+  - audit_phase_a_py_against_live_github_api_still_reports_5_findings_pre_merge_4_missing_timeout_plus_1_stale_schedule_post_merge_only_the_stale_schedule_17_remains_operator_blocked
+  - portfolio_silent_rot_arc_now_2_invariants_at_2_layers_each_in_every_repo_yaml_parseability_plus_timeout_minutes_in_pr_test_lock_and_post_deploy_audit_fingerprint
+  - 11_prs_across_11_repos_three_languages_python_pytest_vitest_js_node_test_canonical_first_hop_llm_eval_harness_63_propagation_to_10_others_plus_this_final_hop_on_authority
+decisions_made: []
+followups: []
+---
