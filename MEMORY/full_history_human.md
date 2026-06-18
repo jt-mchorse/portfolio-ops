@@ -485,3 +485,25 @@ this branch; will integrate to ~143 once PR #38 also lands).
 weekly. Decide whether to start propagating the concurrency lock pattern
 per-repo (same shape as timeout-minutes: 12 small PRs) or whether to
 keep the audit-side fingerprint as sufficient for now.
+
+## 2026-06-18 — Issue #42: concurrency guard + lock test (final hop)
+**Duration:** ~12 min · **Branch:** `session/2026-06-18-1539-issue-42`
+
+- Added top-level `concurrency:` to all 4 workflows here with distinct
+  groups (`tests-${{ github.ref }}`, `audit-cron-${{ github.ref }}`,
+  `trending-daily-${{ github.ref }}`, `trending-weekly-${{ github.ref }}`)
+  so they don't cancel each other when triggers coincide.
+- Copied lock test from llm-eval-harness; docstring origin updated.
+
+**Why this work, this session:** twelfth and final per-repo hop in the
+concurrency-lock propagation arc this session. portfolio-ops is the
+audit source-of-truth — `scripts/audit_phase_a.py --check
+missing-concurrency` from #41 (last night) surfaces every workflow
+missing the lock. After this merges, the audit reports zero
+`missing-concurrency` findings across all 13 repos. Arc closed.
+
+**Open questions / blockers:** none. Test count 143 → 156.
+
+**Next session:** address pyyaml install gap in `audit-cron.yml` (filed
+as separate followup); audit-cron currently degrades gracefully with a
+stderr note when pyyaml is unavailable, but should install it.
