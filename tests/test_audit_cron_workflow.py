@@ -133,6 +133,50 @@ def test_pyyaml_installed(workflow: dict) -> None:
     )
 
 
+def test_audit_step_has_gh_token_env(workflow: dict) -> None:
+    """Lock that the `audit` step declares `GH_TOKEN: ${{ github.token }}`
+    so `scripts/audit_phase_a.py` doesn't fall back to the unauth GitHub
+    API path (60 req/h).
+
+    Symmetric to #48 / PR #49 (the session-runner sibling). The cron path
+    makes the same several-API-calls-per-repo × 13 repos request pattern
+    as the session-runner path; without GH_TOKEN, urllib.request inside
+    the audit script hits HTTP 403 rate-limit partway through the loop
+    and the last few repos return `fetch-error` lines that look like
+    real findings but are self-inflicted. Dropping the env block keeps
+    CI green (the workflow itself doesn't depend on the audit's API
+    calls), so the regression is silent until someone reads the audit
+    output and sees the gap.
+
+    Failure shape this catches: a future PR removes the `env: GH_TOKEN:`
+    block from the audit step or renames the variable. The lock fires
+    immediately with a pointer back to PR #49 (session-runner sibling)
+    and #45 (scripts/README.md local-operator pattern that motivates
+    the symmetry).
+    """
+    audit_job = workflow.get("jobs", {}).get("audit", {})
+    steps = audit_job.get("steps", [])
+    audit_step = next((s for s in steps if s.get("id") == "audit"), None)
+    assert audit_step is not None, (
+        "audit-cron.yml's `audit` job must have a step with `id: audit` "
+        "that invokes scripts/audit_phase_a.py — the rest of the job "
+        "branches on its exit code. This test relies on that id to find "
+        "the right step; if the id changed deliberately, update this lock."
+    )
+    env = audit_step.get("env", {}) or {}
+    assert env.get("GH_TOKEN") == "${{ github.token }}", (
+        "audit-cron.yml's `audit` step must declare "
+        "`env: GH_TOKEN: ${{ github.token }}`. Without it, "
+        "`scripts/audit_phase_a.py`'s urllib.request calls fall back to "
+        "the unauth GitHub API path (60 req/h) and hit HTTP 403 partway "
+        "through the 13-repo loop. The session-runner sibling at PR #49 "
+        "ships the same guard for `session-runner/SESSION_PROMPT.md` step 4; "
+        "this lock keeps the cron path symmetric. See #48 / PR #49 for the "
+        "session-runner shape and PR #45's scripts/README.md for the "
+        f"local-operator pattern. Current env: {env!r}."
+    )
+
+
 def test_listed_in_active_workflows_lock() -> None:
     # If audit-cron.yml is added to .github/workflows/ but NOT to the
     # EXPECTED_ACTIVE_WORKFLOWS tuple in tests/test_workflows_dir_only_active.py,
