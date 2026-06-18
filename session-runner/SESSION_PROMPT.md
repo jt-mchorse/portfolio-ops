@@ -42,9 +42,13 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
    **Override note:** This PR review-and-merge step overrides handoff §10's "never auto-merge". The override is D-004 in portfolio-ops MEMORY. The protections that remain: drafts are never auto-merged; only `isDraft=false` PRs are eligible.
 
-4. **Silent-rot audit pass** (observational, non-blocking). Run `scripts/audit_phase_a.py` over the same 13 repos to surface three silent-rot fingerprints (paired-failure, stuck-registration, stale-schedule):
+4. **Silent-rot audit pass** (observational, non-blocking). Run `scripts/audit_phase_a.py` over the same 13 repos to surface six silent-rot fingerprints (paired-failure, stuck-registration, stale-schedule, phantom-ci, missing-timeout, missing-concurrency):
    ```
    cd ~/projects/portfolio/portfolio-ops
+   # Ensure pyyaml is present so missing-timeout + missing-concurrency
+   # (the two yaml-dependent fingerprints) run at full capacity. Idempotent —
+   # no-op when pyyaml is already importable.
+   python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
    for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook portfolio-ops; do
      out=$(python3 scripts/audit_phase_a.py --repo "$r" 2>&1); rc=$?
      case "$rc" in
@@ -61,7 +65,7 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
    - **Fetch error (exit 2):** log and continue — a flaky GitHub API call is not a session blocker.
    - **Time-box: 5 minutes total.** Each per-repo call is ~1–2s; the whole loop runs in well under a minute. Findings reporting goes into the Phase D summary.
 
-   Rationale: the audit script was shipped in PR #20 (issue #19) with three fingerprints validated end-to-end. Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later.
+   Rationale: the audit script was shipped in PR #20 (issue #19) with the first three fingerprints validated end-to-end; `phantom-ci` was added in PR #28 (issue #27), `missing-timeout` in PR #36 (issue #35), and `missing-concurrency` in PR #41 (issue #40). Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later. The pyyaml pre-step exists because the two yaml-dependent fingerprints lazy-import `yaml` and degrade to a stderr `skipping <check>: pyyaml not installed` note on a fresh venv — without the pre-step the audit runs at 4-of-6 capacity locally (`audit-cron.yml` installs pyyaml on the cron path, see PR #45).
 
 5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through + D-009 priority tier):
 

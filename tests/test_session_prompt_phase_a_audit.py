@@ -1,17 +1,25 @@
 """Lock the Phase A silent-rot audit step in SESSION_PROMPT.md.
 
-`scripts/audit_phase_a.py` (shipped in PR #20, issue #19) scans for three
-silent-rot fingerprints — paired-failure, stuck-registration, stale-schedule —
-across portfolio repos. Issue #21 wired it into Phase A of the canonical
-session prompt as an observational, non-blocking step that runs after the
-PR-review pass.
+`scripts/audit_phase_a.py` scans for six silent-rot fingerprints across
+portfolio repos:
+
+1. paired-failure (#19/#20)
+2. stuck-registration (#19/#20)
+3. stale-schedule (#19/#20)
+4. phantom-ci (#27/#28)
+5. missing-timeout (#35/#36)
+6. missing-concurrency (#40/#41)
+
+Issue #21 wired the audit into Phase A of the canonical session prompt as
+an observational, non-blocking step that runs after the PR-review pass.
 
 This file is the inverse-safety-net: if a future edit drops or breaks the
 audit step in SESSION_PROMPT.md, pytest fails loudly with a specific message
 naming what's missing. Mirrors the shape of
 `tests/test_session_prompt_phase_a_loop.py` (which locks the PR-review loop).
 
-Related: portfolio-ops#21.
+Related: portfolio-ops#21 (audit wire-in), #46 (this lock's six-fingerprint
++ pyyaml-ensure extensions).
 """
 
 from __future__ import annotations
@@ -41,6 +49,21 @@ PORTFOLIO_REPOS = (
 )
 OPS_REPO = "portfolio-ops"
 ALL_REPOS = PORTFOLIO_REPOS + (OPS_REPO,)
+
+# The six canonical silent-rot fingerprints exposed by
+# `scripts/audit_phase_a.py`. Order is the script's docstring order
+# (paired-failure, stuck-registration, stale-schedule, phantom-ci,
+# missing-timeout, missing-concurrency). When a seventh fingerprint
+# lands, add it here AND update the SESSION_PROMPT.md audit step's
+# description text — this list is the bridge between them.
+FINGERPRINTS = (
+    "paired-failure",
+    "stuck-registration",
+    "stale-schedule",
+    "phantom-ci",
+    "missing-timeout",
+    "missing-concurrency",
+)
 
 # The audit step lives between the PR-review override note and the repo-pick
 # step. We isolate that slice and assert on its contents. The slice runs from
@@ -151,6 +174,59 @@ def test_audit_loop_count_matches_known_repos(audit_loop_repos: list[str]) -> No
         f"Phase A audit for-loop has {len(audit_loop_repos)} repos; "
         f"expected {len(ALL_REPOS)} (12 portfolio repos + portfolio-ops). "
         "PR-review loop and audit loop must stay in lockstep."
+    )
+
+
+@pytest.mark.parametrize("fingerprint", FINGERPRINTS)
+def test_audit_section_lists_fingerprint(audit_section: str, fingerprint: str) -> None:
+    """Each of the six canonical fingerprint names must appear verbatim in
+    the SESSION_PROMPT.md audit-section description, so a reader of the
+    prompt knows what the audit covers.
+
+    Drift shape this catches: PR #28 (phantom-ci), PR #36 (missing-timeout),
+    and PR #41 (missing-concurrency) all extended `scripts/audit_phase_a.py`
+    but only #46 propagated the names back into SESSION_PROMPT.md. Without
+    this assertion, the next new fingerprint will silently fail to make it
+    into the prompt.
+    """
+    assert fingerprint in audit_section, (
+        f"Phase A audit description in SESSION_PROMPT.md does not name the "
+        f"{fingerprint!r} fingerprint. `scripts/audit_phase_a.py` ships six "
+        f"fingerprints today ({', '.join(FINGERPRINTS)}); the prompt must "
+        "list each by name so an autonomous session knows what coverage to "
+        "expect. If you intentionally dropped a fingerprint from the script, "
+        "remove it from FINGERPRINTS in this test."
+    )
+
+
+def test_audit_section_pyyaml_ensure(audit_section: str) -> None:
+    """The audit's bash one-liner must ensure pyyaml is importable before
+    the per-repo loop runs.
+
+    Two of the six fingerprints — `missing-timeout` and
+    `missing-concurrency` — lazy-import `yaml` and degrade to a stderr
+    `skipping <check>: pyyaml not installed` note when the import fails.
+    Without an ensure step in the prompt, a fresh local-runner runs the
+    audit at 4-of-6 capacity and the session-runner never knows. The
+    canonical shape is an idempotent guard:
+
+        python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
+
+    A literal text match is loose — any shape that contains both
+    ``import yaml`` and ``pyyaml`` near the audit invocation satisfies
+    the lock. Drop or rename the guard and this fails with a pointer to
+    PR #45 (the sibling fix on the `audit-cron.yml` cron path).
+    """
+    assert "import yaml" in audit_section and "pyyaml" in audit_section, (
+        "Phase A audit section in SESSION_PROMPT.md is missing the pyyaml "
+        "ensure step. Without it, `missing-timeout` and "
+        "`missing-concurrency` silently skip on a fresh local venv, "
+        "leaving the audit at 4-of-6 capacity. Restore the idempotent "
+        "guard:\n"
+        "    python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml\n"
+        "(or any equivalent shape that contains both 'import yaml' and "
+        "'pyyaml'). The cron-path sibling lives in PR #45's "
+        "audit-cron.yml install step."
     )
 
 
