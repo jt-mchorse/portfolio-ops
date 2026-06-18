@@ -507,3 +507,46 @@ missing the lock. After this merges, the audit reports zero
 **Next session:** address pyyaml install gap in `audit-cron.yml` (filed
 as separate followup); audit-cron currently degrades gracefully with a
 stderr note when pyyaml is unavailable, but should install it.
+
+## 2026-06-18 — Issue #44: audit-cron pyyaml install gap closed
+**Duration:** ~20 min · **Branch:** session/2026-06-18-1910-issue-44
+
+- Added an explicit `python -m pip install --quiet pyyaml` step to
+  `.github/workflows/audit-cron.yml`'s `audit` job before the audit
+  step. The `missing-timeout` (#35) and `missing-concurrency` (#41)
+  fingerprints in `scripts/audit_phase_a.py` lazy-import pyyaml and
+  no-op silently when it's absent, so without this install the weekly
+  cron only ran four of the six checks.
+- Locked the install via
+  `tests/test_audit_cron_workflow.py::test_pyyaml_installed`, which
+  asserts both the presence of the `pip install pyyaml` step and its
+  ordering relative to the `id: audit` step — either drop or reorder
+  fails loudly with a one-line explanation.
+- Added `scripts/README.md` (new) with operator-local-runner setup
+  notes (GH_TOKEN bump, pyyaml install, smoke-test command) plus a
+  table of the four scripts. Added `scripts/requirements.txt` pinning
+  pyyaml>=6.0 so the local install is one line.
+- Updated the `audit_phase_a.py` module docstring to call out pyyaml as
+  the hard dep for the two yaml-dependent checks, document the lazy-
+  import + graceful-degradation pattern and why it's intentional, and
+  name the two places pyyaml is guaranteed (audit-cron + tests.yml).
+
+**Why this work, this session:** Surfaced fresh in this session's
+Phase A local-audit pass — both `mcp-server-cookbook` and
+`portfolio-ops` initially hit rate limits; the GH_TOKEN-retry for
+those two showed the "skipping <check>: pyyaml not installed" stderr
+notes for portfolio-ops, confirming the gap on the local runner. The
+audit-cron workflow had the same gap latent on the weekly cron since
+shipping in #34 and would have hit it the first time pyyaml-dependent
+findings appeared.
+
+**Open questions / blockers:** none. Test count 157 → 158.
+
+**Next session:** the silent-rot audit-side arc is now functionally
+complete on cron. The 13-repo PR-side propagation of yaml-parseability
+(#30/#31) and timeout-minutes (#37) locks are both at 12/12; the
+concurrency lock just hit 12/12 too with this session's Phase A merges.
+A possible next step is to propagate a per-repo concurrency audit-side
+fingerprint lock test (mirror of timeout-minutes), but the validation
+arc is saturated per multiple prior session memos — likely better to
+pivot to real engineering on a priority-tier repo.
