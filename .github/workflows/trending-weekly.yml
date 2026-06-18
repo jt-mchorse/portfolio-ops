@@ -5,6 +5,13 @@ on:
     - cron: '0 13 * * 0'   # Sunday 06:00 PT (13:00 UTC)
   workflow_dispatch:
 
+# Cancel an in-flight run when the cron and a manual dispatch overlap,
+# or on rapid dispatch double-clicks. Distinct group from the other
+# workflows so they run concurrently when triggers coincide.
+concurrency:
+  group: trending-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   issues: write

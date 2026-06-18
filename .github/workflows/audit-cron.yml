@@ -14,6 +14,14 @@ on:
     - cron: '0 14 * * 1'
   workflow_dispatch:
 
+# Cancel an in-flight run when the scheduled cron and a manual dispatch
+# overlap, or when an operator dispatches twice in quick succession.
+# Distinct group from tests / trending-* so they don't cancel each
+# other when triggers happen to coincide.
+concurrency:
+  group: audit-cron-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   issues: write
