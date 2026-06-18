@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase A operational-health audit.
 
-Catches five silent-rot fingerprints across the 13 portfolio repos:
+Catches six silent-rot fingerprints across the 13 portfolio repos:
 
 1. paired-failure  — a single push-event SHA produces multiple workflow runs
                      with conflicting conclusions (one success + one failure).
@@ -28,11 +28,19 @@ Catches five silent-rot fingerprints across the 13 portfolio repos:
                      that case, so a hung job burns the full 6-hour ceiling
                      before being killed (#35; canonical per-repo lock at
                      llm-eval-harness#62 etc.).
+6. missing-concurrency — a workflow with no top-level `concurrency:` group.
+                         Without one, a rapid push-on-push (rebased session
+                         branch force-pushed, PR chain merged in quick
+                         succession) burns one full CI run per push even
+                         though the in-flight run is immediately superseded.
+                         A `cancel-in-progress: true` group cuts wall time
+                         by 30-60s per superseded run (#40).
 
-Mostly stdlib (urllib.request + json). The missing-timeout fingerprint is
-the one exception — it lazy-imports `yaml` and degrades to "no findings"
-plus a stderr note if pyyaml is not installed. The other four checks
-remain stdlib-only and run regardless.
+Mostly stdlib (urllib.request + json). The missing-timeout and
+missing-concurrency fingerprints are the two exceptions — both
+lazy-import `yaml` and degrade to "no findings" plus a stderr note if
+pyyaml is not installed. The other four checks remain stdlib-only and
+run regardless.
 
 Optional `GH_TOKEN` env for higher rate limit; unauth works for public
 repos with lower quota.
@@ -45,6 +53,7 @@ Exit codes:
 Spec / origin: portfolio-ops#19. Intended to run at the top of Phase A in
 session-runner/SESSION_PROMPT.md as a non-blocking pre-check.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -75,15 +84,16 @@ OPS_REPO = "portfolio-ops"
 ALL_REPOS = PORTFOLIO_REPOS + (OPS_REPO,)
 
 USER_AGENT = (
-    "portfolio-audit-phase-a/1.0 "
-    "(+https://github.com/jt-mchorse/portfolio-ops)"
+    "portfolio-audit-phase-a/1.0 (+https://github.com/jt-mchorse/portfolio-ops)"
 )
 
 
 def _gh_get(path: str, token: str | None) -> Any:
     """Fetch JSON from GitHub API. Raises on non-200."""
     url = f"https://api.github.com{path}"
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"}
+    )
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -146,7 +156,9 @@ def check_stuck_registration(repo: str, token: str | None) -> list[dict]:
     return findings
 
 
-def check_stale_schedule(repo: str, token: str | None, threshold: int = 3) -> list[dict]:
+def check_stale_schedule(
+    repo: str, token: str | None, threshold: int = 3
+) -> list[dict]:
     """Flag scheduled workflows with >= threshold consecutive failures and no successes."""
     data = _gh_get(
         f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=schedule&per_page=10",
@@ -200,7 +212,9 @@ def check_phantom_ci(
     # disabled/deleted workflows don't keep crying wolf after the bug is gone.
     workflows_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/actions/workflows", token)
     active_ids = {
-        wf["id"] for wf in workflows_data.get("workflows", []) if wf.get("state") == "active"
+        wf["id"]
+        for wf in workflows_data.get("workflows", [])
+        if wf.get("state") == "active"
     }
     data = _gh_get(
         f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch=main&per_page=20",
@@ -220,8 +234,7 @@ def check_phantom_ci(
         phantoms = [
             r
             for r in wf_runs
-            if r.get("conclusion") in (None, "failure")
-            and _phantom_run(r, token, repo)
+            if r.get("conclusion") in (None, "failure") and _phantom_run(r, token, repo)
         ]
         if len(phantoms) >= threshold:
             findings.append(
@@ -340,6 +353,77 @@ def check_missing_timeout(repo: str, token: str | None) -> list[dict]:
     return findings
 
 
+def check_missing_concurrency(repo: str, token: str | None) -> list[dict]:
+    """Flag active workflows with no top-level `concurrency:` group.
+
+    Without a concurrency group, a rapid push-on-push (operator force-pushing
+    a session branch after a rebase, or merging a PR chain in quick
+    succession) burns one full CI run per push — even though the in-flight
+    run is immediately superseded. A `concurrency: { group: ..., cancel-in-progress: true }`
+    block saves 30-60s per superseded run and prevents wasted CI minutes.
+
+    Per-repo lock tests (`tests/test_workflows_concurrency.py`, future
+    propagation) catch this on a PR-test basis once each repo's lock has
+    been added. This fingerprint is the cross-repo post-deploy net:
+    every workflow whose top level lacks `concurrency:` gets surfaced
+    until the lock lands.
+
+    pyyaml is lazy-imported here and the check returns an empty findings
+    list (plus a stderr note) when pyyaml is unavailable, matching the
+    same degradation pattern as `check_missing_timeout`.
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
+        print(
+            f"skipping missing-concurrency for {repo}: pyyaml not installed",
+            file=sys.stderr,
+        )
+        return []
+
+    workflows_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/actions/workflows", token)
+    findings: list[dict] = []
+    for wf in workflows_data.get("workflows", []):
+        if wf.get("state") != "active":
+            continue
+        wf_path = wf.get("path", "")
+        wf_name = wf.get("name", "")
+        try:
+            content_data = _gh_get(
+                f"/repos/{REPO_OWNER}/{repo}/contents/{wf_path}",
+                token,
+            )
+        except urllib.error.HTTPError:
+            # If we can't read the file, skip rather than false-positive.
+            continue
+        encoded = content_data.get("content", "")
+        if not encoded:
+            continue
+        import base64
+
+        try:
+            text = base64.b64decode(encoded).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            continue
+        try:
+            parsed = yaml.safe_load(text)
+        except yaml.YAMLError:
+            # Unparseable YAML is the phantom-ci/parseability fingerprint's job.
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        if "concurrency" not in parsed:
+            findings.append(
+                {
+                    "kind": "missing-concurrency",
+                    "repo": repo,
+                    "workflow_name": wf_name,
+                    "workflow_path": wf_path,
+                }
+            )
+    return findings
+
+
 def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings: list[dict] = []
     findings.extend(check_paired_failure(repo, token))
@@ -347,6 +431,7 @@ def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings.extend(check_stale_schedule(repo, token))
     findings.extend(check_phantom_ci(repo, token))
     findings.extend(check_missing_timeout(repo, token))
+    findings.extend(check_missing_concurrency(repo, token))
     return findings
 
 
@@ -354,9 +439,7 @@ def format_finding(f: dict) -> str:
     kind = f["kind"]
     repo = f["repo"]
     if kind == "paired-failure":
-        run_summaries = ", ".join(
-            f"{r['name']}={r['conclusion']}" for r in f["runs"]
-        )
+        run_summaries = ", ".join(f"{r['name']}={r['conclusion']}" for r in f["runs"])
         return f"  [{kind}] {repo}@{f['sha']}: {run_summaries}"
     if kind == "stuck-registration":
         return (
@@ -381,6 +464,11 @@ def format_finding(f: dict) -> str:
             f"  [{kind}] {repo}: workflow {f['workflow_name']!r} "
             f"({f['workflow_path']}) has {len(f['jobs_missing'])} job(s) without "
             f"`timeout-minutes`: {jobs}"
+        )
+    if kind == "missing-concurrency":
+        return (
+            f"  [{kind}] {repo}: workflow {f['workflow_name']!r} "
+            f"({f['workflow_path']}) has no top-level `concurrency:` group"
         )
     return f"  [{kind}] {repo}: {f}"
 
@@ -413,7 +501,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             all_findings.extend(audit_repo(repo, token))
         except urllib.error.HTTPError as exc:
-            print(f"error: HTTP {exc.code} fetching for {repo}: {exc.reason}", file=sys.stderr)
+            print(
+                f"error: HTTP {exc.code} fetching for {repo}: {exc.reason}",
+                file=sys.stderr,
+            )
             return 2
         except urllib.error.URLError as exc:
             print(f"error: network failure for {repo}: {exc.reason}", file=sys.stderr)

@@ -69,8 +69,18 @@ def test_check_paired_failure_flags_mixed_conclusions(audit_module):
     responses = {
         "actions/runs?event=push&branch=main": {
             "workflow_runs": [
-                {"head_sha": "abc12345...", "conclusion": "success", "name": "ci", "path": ".github/workflows/ci.yml"},
-                {"head_sha": "abc12345...", "conclusion": "failure", "name": ".github/workflows/template.yml", "path": ".github/workflows/template.yml"},
+                {
+                    "head_sha": "abc12345...",
+                    "conclusion": "success",
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                },
+                {
+                    "head_sha": "abc12345...",
+                    "conclusion": "failure",
+                    "name": ".github/workflows/template.yml",
+                    "path": ".github/workflows/template.yml",
+                },
             ]
         },
     }
@@ -87,7 +97,12 @@ def test_check_paired_failure_ignores_single_run_per_sha(audit_module):
     responses = {
         "actions/runs?event=push&branch=main": {
             "workflow_runs": [
-                {"head_sha": "abc12345...", "conclusion": "failure", "name": "ci", "path": ".github/workflows/ci.yml"},
+                {
+                    "head_sha": "abc12345...",
+                    "conclusion": "failure",
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                },
             ]
         },
     }
@@ -101,8 +116,18 @@ def test_check_paired_failure_ignores_uniform_success(audit_module):
     responses = {
         "actions/runs?event=push&branch=main": {
             "workflow_runs": [
-                {"head_sha": "abc12345...", "conclusion": "success", "name": "ci", "path": ".github/workflows/ci.yml"},
-                {"head_sha": "abc12345...", "conclusion": "success", "name": "lint", "path": ".github/workflows/lint.yml"},
+                {
+                    "head_sha": "abc12345...",
+                    "conclusion": "success",
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                },
+                {
+                    "head_sha": "abc12345...",
+                    "conclusion": "success",
+                    "name": "lint",
+                    "path": ".github/workflows/lint.yml",
+                },
             ]
         },
     }
@@ -116,8 +141,18 @@ def test_check_stuck_registration_flags_path_as_name(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 999, "name": ".github/workflows/broken.yml", "path": ".github/workflows/broken.yml", "state": "active"},
-                {"id": 100, "name": "healthy", "path": ".github/workflows/healthy.yml", "state": "active"},
+                {
+                    "id": 999,
+                    "name": ".github/workflows/broken.yml",
+                    "path": ".github/workflows/broken.yml",
+                    "state": "active",
+                },
+                {
+                    "id": 100,
+                    "name": "healthy",
+                    "path": ".github/workflows/healthy.yml",
+                    "state": "active",
+                },
             ]
         },
     }
@@ -133,7 +168,12 @@ def test_check_stuck_registration_ignores_disabled(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 999, "name": ".github/workflows/broken.yml", "path": ".github/workflows/broken.yml", "state": "disabled_manually"},
+                {
+                    "id": 999,
+                    "name": ".github/workflows/broken.yml",
+                    "path": ".github/workflows/broken.yml",
+                    "state": "disabled_manually",
+                },
             ]
         },
     }
@@ -147,9 +187,21 @@ def test_check_stale_schedule_flags_consecutive_failures(audit_module):
     responses = {
         "actions/runs?event=schedule": {
             "workflow_runs": [
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
             ]
         },
     }
@@ -164,10 +216,26 @@ def test_check_stale_schedule_stops_at_first_success(audit_module):
     responses = {
         "actions/runs?event=schedule": {
             "workflow_runs": [
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "success"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "success",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
             ]
         },
     }
@@ -182,14 +250,26 @@ def test_check_stale_schedule_honors_threshold(audit_module):
     responses = {
         "actions/runs?event=schedule": {
             "workflow_runs": [
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
-                {"path": ".github/workflows/cron.yml", "name": "cron", "conclusion": "failure"},
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
+                {
+                    "path": ".github/workflows/cron.yml",
+                    "name": "cron",
+                    "conclusion": "failure",
+                },
             ]
         },
     }
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
-        findings_t3 = audit_module.check_stale_schedule("anyrepo", token=None, threshold=3)
-        findings_t2 = audit_module.check_stale_schedule("anyrepo", token=None, threshold=2)
+        findings_t3 = audit_module.check_stale_schedule(
+            "anyrepo", token=None, threshold=3
+        )
+        findings_t2 = audit_module.check_stale_schedule(
+            "anyrepo", token=None, threshold=2
+        )
     assert findings_t3 == []
     assert len(findings_t2) == 1
 
@@ -198,9 +278,16 @@ def test_audit_repo_with_no_findings_returns_empty(audit_module):
     """All three checks return empty for a healthy repo."""
     responses = {
         "actions/runs?event=push&branch=main": {"workflow_runs": []},
-        "actions/workflows": {"workflows": [
-            {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"}
-        ]},
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                }
+            ]
+        },
         "actions/runs?event=schedule": {"workflow_runs": []},
     }
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
@@ -212,9 +299,16 @@ def test_main_clean_repo_returns_zero_and_prints_clean(audit_module, capsys):
     """End-to-end: a healthy repo returns 0 and prints 'clean'."""
     responses = {
         "actions/runs?event=push&branch=main": {"workflow_runs": []},
-        "actions/workflows": {"workflows": [
-            {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"}
-        ]},
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                }
+            ]
+        },
         "actions/runs?event=schedule": {"workflow_runs": []},
     }
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
@@ -229,13 +323,30 @@ def test_main_with_findings_returns_one_and_prints_summary(audit_module, capsys)
     responses = {
         "actions/runs?event=push&branch=main": {
             "workflow_runs": [
-                {"head_sha": "deadbeef...", "conclusion": "success", "name": "ci", "path": ".github/workflows/ci.yml"},
-                {"head_sha": "deadbeef...", "conclusion": "failure", "name": ".github/workflows/dead.yml", "path": ".github/workflows/dead.yml"},
+                {
+                    "head_sha": "deadbeef...",
+                    "conclusion": "success",
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                },
+                {
+                    "head_sha": "deadbeef...",
+                    "conclusion": "failure",
+                    "name": ".github/workflows/dead.yml",
+                    "path": ".github/workflows/dead.yml",
+                },
             ]
         },
-        "actions/workflows": {"workflows": [
-            {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"}
-        ]},
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                }
+            ]
+        },
         "actions/runs?event=schedule": {"workflow_runs": []},
     }
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
@@ -252,8 +363,18 @@ def test_main_json_output(audit_module, capsys):
     responses = {
         "actions/runs?event=push&branch=main": {
             "workflow_runs": [
-                {"head_sha": "deadbeef...", "conclusion": "success", "name": "ci", "path": ".github/workflows/ci.yml"},
-                {"head_sha": "deadbeef...", "conclusion": "failure", "name": ".github/workflows/dead.yml", "path": ".github/workflows/dead.yml"},
+                {
+                    "head_sha": "deadbeef...",
+                    "conclusion": "success",
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                },
+                {
+                    "head_sha": "deadbeef...",
+                    "conclusion": "failure",
+                    "name": ".github/workflows/dead.yml",
+                    "path": ".github/workflows/dead.yml",
+                },
             ]
         },
         "actions/workflows": {"workflows": []},
@@ -274,7 +395,14 @@ def test_main_json_output(audit_module, capsys):
 # check_phantom_ci — #32, the 4th fingerprint shape (zero-job push runs)
 # ----------------------------------------------------------------------------
 
-def _push_run(sha: str, conclusion: str | None, latest_check_runs_count: int, wf_id: int = 100, name: str = "tests") -> dict:
+
+def _push_run(
+    sha: str,
+    conclusion: str | None,
+    latest_check_runs_count: int,
+    wf_id: int = 100,
+    name: str = "tests",
+) -> dict:
     return {
         "id": int(sha[:7], 16),
         "head_sha": sha + "0" * (40 - len(sha)),
@@ -286,7 +414,9 @@ def _push_run(sha: str, conclusion: str | None, latest_check_runs_count: int, wf
     }
 
 
-def _active_wf(wf_id: int = 100, name: str = "tests", path: str = ".github/workflows/tests.yml") -> dict:
+def _active_wf(
+    wf_id: int = 100, name: str = "tests", path: str = ".github/workflows/tests.yml"
+) -> dict:
     """Build a minimal workflow record for the active-workflows endpoint."""
     return {"id": wf_id, "name": name, "path": path, "state": "active"}
 
@@ -404,6 +534,7 @@ def test_check_phantom_ci_null_conclusion_counts_as_phantom(audit_module):
 
 def test_check_phantom_ci_falls_back_to_jobs_endpoint(audit_module):
     """When latest_check_runs_count is absent, the script falls back to /jobs total_count."""
+
     def _run_no_count(sha, conclusion):
         r = _push_run(sha, conclusion, 0)
         r.pop("latest_check_runs_count")
@@ -518,7 +649,12 @@ def test_check_missing_timeout_clean_when_all_guarded(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
             ]
         },
         "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_GUARDED)},
@@ -533,7 +669,12 @@ def test_check_missing_timeout_flags_single_unguarded_job(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
             ]
         },
         "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ONE_UNGUARDED)},
@@ -551,7 +692,12 @@ def test_check_missing_timeout_flags_all_unguarded_jobs(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
             ]
         },
         "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
@@ -568,10 +714,17 @@ def test_check_missing_timeout_skips_disabled_workflows(audit_module):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 1, "name": "old", "path": ".github/workflows/old.yml", "state": "disabled_manually"},
+                {
+                    "id": 1,
+                    "name": "old",
+                    "path": ".github/workflows/old.yml",
+                    "state": "disabled_manually",
+                },
             ]
         },
-        "contents/.github/workflows/old.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
+        "contents/.github/workflows/old.yml": {
+            "content": _b64(_WORKFLOW_ALL_UNGUARDED)
+        },
     }
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
         findings = audit_module.check_missing_timeout("anyrepo", token=None)
@@ -587,12 +740,21 @@ def test_check_missing_timeout_skips_when_pyyaml_missing(audit_module, capsys):
     responses = {
         "actions/workflows": {
             "workflows": [
-                {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"},
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
             ]
         },
         "contents/.github/workflows/ci.yml": {"content": _b64(_WORKFLOW_ALL_UNGUARDED)},
     }
-    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
+    real_import = (
+        __builtins__["__import__"]
+        if isinstance(__builtins__, dict)
+        else __builtins__.__import__
+    )
 
     def fake_import(name, *args, **kwargs):
         if name == "yaml":
@@ -610,3 +772,195 @@ def test_check_missing_timeout_skips_when_pyyaml_missing(audit_module, capsys):
     err = capsys.readouterr().err
     assert "pyyaml not installed" in err
     assert "anyrepo" in err
+
+
+# ---------------------------------------------------------------------------
+# missing-concurrency fingerprint tests (#40)
+# ---------------------------------------------------------------------------
+
+_WORKFLOW_WITH_CONCURRENCY = """\
+name: ci
+on: [push]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo test
+"""
+
+_WORKFLOW_NO_CONCURRENCY = """\
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo test
+"""
+
+
+def test_check_missing_concurrency_clean_when_present(audit_module):
+    """A workflow with a top-level `concurrency:` group should produce no finding."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {
+            "content": _b64(_WORKFLOW_WITH_CONCURRENCY)
+        },
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_concurrency("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_missing_concurrency_flags_workflow_without_group(audit_module):
+    """A workflow with no concurrency: should surface a single finding."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {
+            "content": _b64(_WORKFLOW_NO_CONCURRENCY)
+        },
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_concurrency("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["kind"] == "missing-concurrency"
+    assert findings[0]["workflow_name"] == "ci"
+    assert findings[0]["workflow_path"] == ".github/workflows/ci.yml"
+
+
+def test_check_missing_concurrency_flags_each_workflow_independently(audit_module):
+    """Two workflows both missing concurrency should each surface as its own finding."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
+                {
+                    "id": 2,
+                    "name": "eval",
+                    "path": ".github/workflows/eval.yml",
+                    "state": "active",
+                },
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {
+            "content": _b64(_WORKFLOW_NO_CONCURRENCY)
+        },
+        "contents/.github/workflows/eval.yml": {
+            "content": _b64(_WORKFLOW_NO_CONCURRENCY)
+        },
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_concurrency("anyrepo", token=None)
+    assert len(findings) == 2
+    names = sorted(f["workflow_name"] for f in findings)
+    assert names == ["ci", "eval"]
+
+
+def test_check_missing_concurrency_skips_disabled_workflows(audit_module):
+    """Disabled workflows are skipped — operator chose to disable; not silent rot."""
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "old",
+                    "path": ".github/workflows/old.yml",
+                    "state": "disabled_manually",
+                },
+            ]
+        },
+        "contents/.github/workflows/old.yml": {
+            "content": _b64(_WORKFLOW_NO_CONCURRENCY)
+        },
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_missing_concurrency("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_missing_concurrency_skips_when_pyyaml_missing(audit_module, capsys):
+    """If pyyaml isn't importable, return [] and emit a stderr note.
+
+    Matches the same degradation pattern as `check_missing_timeout`. Other
+    fingerprints must continue to work (stdlib-only).
+    """
+    responses = {
+        "actions/workflows": {
+            "workflows": [
+                {
+                    "id": 1,
+                    "name": "ci",
+                    "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                },
+            ]
+        },
+        "contents/.github/workflows/ci.yml": {
+            "content": _b64(_WORKFLOW_NO_CONCURRENCY)
+        },
+    }
+    real_import = (
+        __builtins__["__import__"]
+        if isinstance(__builtins__, dict)
+        else __builtins__.__import__
+    )
+
+    def fake_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("simulated missing pyyaml")
+        return real_import(name, *args, **kwargs)
+
+    import builtins
+
+    with (
+        patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)),
+        patch.object(builtins, "__import__", side_effect=fake_import),
+    ):
+        findings = audit_module.check_missing_concurrency("anyrepo", token=None)
+    assert findings == []
+    err = capsys.readouterr().err
+    assert "pyyaml not installed" in err
+    assert "anyrepo" in err
+
+
+def test_format_finding_renders_missing_concurrency(audit_module):
+    """Output line for missing-concurrency includes repo, workflow name, and path."""
+    finding = {
+        "kind": "missing-concurrency",
+        "repo": "anyrepo",
+        "workflow_name": "ci",
+        "workflow_path": ".github/workflows/ci.yml",
+    }
+    line = audit_module.format_finding(finding)
+    assert "[missing-concurrency]" in line
+    assert "anyrepo" in line
+    assert "ci" in line
+    assert ".github/workflows/ci.yml" in line
