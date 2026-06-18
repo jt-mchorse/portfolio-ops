@@ -576,3 +576,16 @@ pivot to real engineering on a priority-tier repo.
 **Open questions / blockers:** none.
 
 **Next session:** Phase A audit step now has three lockstep guards in SESSION_PROMPT.md — six-fingerprint name list (#46), pyyaml ensure (#46), GH_TOKEN export (#48). The audit step itself is genuinely saturated; pivot to non-audit work on a priority-tier repo.
+
+## 2026-06-18 — Issue #50: audit-cron.yml env.GH_TOKEN lock — cron-path sibling to #48/#49
+**Duration:** ~10 min · **Branch:** `session/2026-06-18-2324-issue-50`
+
+- Extended `tests/test_audit_cron_workflow.py` with `test_audit_step_has_gh_token_env`. The workflow already declared `env: GH_TOKEN: ${{ github.token }}` on the audit step (line 52) but no lock test covered it — drop the env block and the audit script's urllib.request calls fall back to unauth (60 req/h), same shape that hit the session-runner path in #48 and got locked in PR #49.
+- Dogfood: sed-and-restore the env block locally; the new test failed with the documented pointer to PR #49 and PR #45, including the empty-env value in the message.
+- Test count: 165 → 166.
+
+**Why this work, this session:** Audit-side symmetry. The pyyaml install was already protected at two layers (cron path #45 + session-runner path #47). The GH_TOKEN guard was only protected at the session-runner layer (just-shipped PR #49). This PR closes the cron-path lock gap so any future env-block regression on either path fails CI loudly.
+
+**Open questions / blockers:** none.
+
+**Next session:** Phase A audit two-layer install guarantee is now complete: pyyaml at two layers (#45, #47), GH_TOKEN at two layers (#49, #51), six-fingerprint name list at one layer (#47, the only one needed since the script docstring is authoritative). Audit-side lock arc is genuinely saturated. Pivot to a non-audit, non-portfolio-ops repo for substantive engineering next time.
