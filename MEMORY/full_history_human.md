@@ -563,3 +563,16 @@ pivot to real engineering on a priority-tier repo.
 **Open questions / blockers:** none.
 
 **Next session:** Phase A audit caps are now lock-tested against the script's docstring fingerprint list. When a seventh fingerprint lands, the per-fingerprint test will fail loudly until both `FINGERPRINTS` in the lock test and the prompt description are extended. The validation arc on the audit step is now genuinely saturated — pivot to real engineering on a priority-tier repo next.
+
+## 2026-06-18 — Issue #48: SESSION_PROMPT.md audit — export GH_TOKEN before the loop
+**Duration:** ~15 min · **Branch:** `session/2026-06-18-2318-issue-48`
+
+- Added an idempotent `export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null)}"` to `session-runner/SESSION_PROMPT.md` step 4, between the pyyaml ensure (#46/#47) and the per-repo audit loop. Pre-set GH_TOKEN wins; missing `gh` silently no-ops. Bumps the audit's per-session GitHub API budget from 60 to 5000 req/h.
+- Extended the rationale paragraph with one sentence crediting PR #45 as the local-operator sibling and naming the rate-limit mechanism.
+- Added `test_audit_section_exports_gh_token` to the lock test — loose-text match requiring both `GH_TOKEN` and `gh auth token` substrings in the audit section. Same shape as `test_audit_section_pyyaml_ensure` from #46. Test count 164 → 165.
+
+**Why this work, this session:** Same dogfood pattern as #46 — surfaced directly during this session's Phase A step 4. Two of 13 repos (`mcp-server-cookbook`, `portfolio-ops`) returned `HTTP 403 rate limit exceeded` on the unauth path. The two unscanned repos happened to include the one with the only real finding (`portfolio-ops` / `trending-daily` stale-schedule from #17), so a real silent-rot signal was hidden behind a self-inflicted rate-limit. Manual retry with `GH_TOKEN=$(gh auth token)` worked, which proved the fix; this PR makes that automatic.
+
+**Open questions / blockers:** none.
+
+**Next session:** Phase A audit step now has three lockstep guards in SESSION_PROMPT.md — six-fingerprint name list (#46), pyyaml ensure (#46), GH_TOKEN export (#48). The audit step itself is genuinely saturated; pivot to non-audit work on a priority-tier repo.
