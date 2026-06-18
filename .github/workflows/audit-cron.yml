@@ -38,6 +38,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install pyyaml
+        # pyyaml is the dep for the missing-timeout and missing-concurrency
+        # fingerprints in scripts/audit_phase_a.py. Without it, those two
+        # checks no-op silently and the cron only finds the other four
+        # shapes — defeating half the audit. Locked by
+        # tests/test_audit_cron_workflow.py::test_pyyaml_installed.
+        run: python -m pip install --quiet pyyaml
+
       - name: Run silent-rot audit
         id: audit
         env:

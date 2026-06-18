@@ -91,6 +91,48 @@ def test_dedupe_label_reference(workflow: dict) -> None:
     )
 
 
+def test_pyyaml_installed(workflow: dict) -> None:
+    # scripts/audit_phase_a.py's missing-timeout and missing-concurrency
+    # fingerprints lazy-import pyyaml and degrade to "no findings" plus a
+    # stderr note when it's absent. The audit-cron job MUST install pyyaml
+    # explicitly so both checks function on schedule; without it, half of
+    # the audit silently no-ops every Monday. See portfolio-ops#44.
+    audit_job = workflow.get("jobs", {}).get("audit", {})
+    steps = audit_job.get("steps", [])
+    install_step = None
+    for step in steps:
+        run = step.get("run", "")
+        if "pip install" in run and "pyyaml" in run:
+            install_step = step
+            break
+    assert install_step is not None, (
+        "audit-cron.yml's `audit` job must have a step that runs "
+        "`pip install ... pyyaml` before invoking scripts/audit_phase_a.py. "
+        "Without pyyaml, the missing-timeout and missing-concurrency "
+        "fingerprints silently no-op and the weekly audit only catches "
+        "the four stdlib-checkable shapes. See portfolio-ops#44."
+    )
+    # Defense-in-depth: ordering. The install step must come BEFORE the
+    # `Run silent-rot audit` step. A swap would silently keep CI green
+    # (pyyaml gets installed; just too late to help the audit).
+    install_idx = steps.index(install_step)
+    audit_idx = next(
+        (i for i, step in enumerate(steps) if step.get("id") == "audit"),
+        None,
+    )
+    assert audit_idx is not None, (
+        "audit-cron.yml's `audit` job must have a step with `id: audit` "
+        "that invokes scripts/audit_phase_a.py — the rest of the job "
+        "branches on its exit code."
+    )
+    assert install_idx < audit_idx, (
+        "The pyyaml install step must run BEFORE the audit step "
+        f"(install_idx={install_idx}, audit_idx={audit_idx}). Installing "
+        "after the audit silently keeps CI green while the audit still "
+        "skips the two yaml-dependent fingerprints."
+    )
+
+
 def test_listed_in_active_workflows_lock() -> None:
     # If audit-cron.yml is added to .github/workflows/ but NOT to the
     # EXPECTED_ACTIVE_WORKFLOWS tuple in tests/test_workflows_dir_only_active.py,

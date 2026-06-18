@@ -38,9 +38,32 @@ Catches six silent-rot fingerprints across the 13 portfolio repos:
 
 Mostly stdlib (urllib.request + json). The missing-timeout and
 missing-concurrency fingerprints are the two exceptions — both
-lazy-import `yaml` and degrade to "no findings" plus a stderr note if
-pyyaml is not installed. The other four checks remain stdlib-only and
-run regardless.
+lazy-import `yaml` (pyyaml) and degrade to "no findings" plus a stderr
+note when pyyaml is unavailable. The other four checks remain
+stdlib-only and run regardless.
+
+Dependencies:
+  - Stdlib only is enough to run paired-failure, stuck-registration,
+    stale-schedule, and phantom-ci.
+  - `pyyaml` is required for `missing-timeout` and `missing-concurrency`
+    to do real work. Install it with `pip install pyyaml` (or `pip
+    install -r scripts/requirements.txt`). Without it, the two yaml-
+    dependent checks no-op silently — they return zero findings and
+    write a one-line "skipping <check>: pyyaml not installed" to stderr.
+    The lazy import + graceful degradation pattern is intentional: the
+    script remains usable on a minimal venv for the four stdlib checks,
+    and a missing pyyaml never crashes the surrounding session-runner
+    Phase A bash wrapper that branches on exit code only.
+
+Where pyyaml is guaranteed:
+  - `audit-cron.yml`'s `audit` job (installed via `pip install pytest
+    pyyaml` in the lock-test step; the same job runs the audit so both
+    yaml checks function in scheduled cron). The pyyaml install is
+    locked by `tests/test_audit_cron_workflow.py::test_pyyaml_installed`
+    so it can't be dropped silently in a future workflow tweak.
+  - The Phase A wrapper in `session-runner/SESSION_PROMPT.md` runs on
+    the operator's local venv — see `scripts/README.md` for the
+    operator setup note.
 
 Optional `GH_TOKEN` env for higher rate limit; unauth works for public
 repos with lower quota.
