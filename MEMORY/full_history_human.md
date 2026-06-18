@@ -451,3 +451,37 @@ The natural next invariant to add (after #28 closed the unquoted
 colon-space outage) is a check that `statusCheckRollup` isn't empty
 on a completed-failure run — the exact phantom-CI shape we already
 catch in audit but don't yet have a pre-merge lock for.
+
+## 2026-06-18 — Issue #40: missing-concurrency fingerprint
+**Duration:** ~25 min · **Branch:** `session/2026-06-18-0346-issue-40`
+
+- Added `check_missing_concurrency(repo, token)` to
+  `scripts/audit_phase_a.py` — sixth silent-rot fingerprint, mirrors the
+  `check_missing_timeout` shape (#35/#36). Flags workflows without a
+  top-level `concurrency:` group.
+- Wired into `audit_repo` + `format_finding`; updated the script
+  docstring to enumerate 6 fingerprints (was 5).
+- Added 6 unit tests via the existing `urlopen` monkeypatch fixture:
+  clean / one-missing / two-independent / disabled-skipped /
+  pyyaml-missing graceful / format-finding output shape.
+- Dogfooded against live API: `portfolio-ops` reports 4
+  `missing-concurrency` findings (one per workflow); `ai-app-integration-tests`
+  reports 0 (it has the template `concurrency: { group: ..., cancel-in-progress: true }`).
+
+**Why this work, this session:** the immediate next silent-rot
+invariant after timeout-minutes. Without a concurrency group, a rapid
+push-on-push burns one full CI run per push even though the in-flight
+run is immediately superseded. **Audit-side only this PR** — per-repo
+lock-test propagation is deferred to subsequent sessions to avoid
+stacking 12 new PRs on top of the just-shipped 11-PR timeout-minutes
+campaign (PRs #38–#44 + 5 more). Same architectural decision as #35:
+audit fingerprint first as the cross-repo post-deploy net, per-repo
+locks follow when there's bandwidth.
+
+**Open questions / blockers:** none. Test count 121 → 127 (+6 new on
+this branch; will integrate to ~143 once PR #38 also lands).
+
+**Next session:** audit will now surface every unprotected workflow
+weekly. Decide whether to start propagating the concurrency lock pattern
+per-repo (same shape as timeout-minutes: 12 small PRs) or whether to
+keep the audit-side fingerprint as sufficient for now.
