@@ -550,3 +550,16 @@ A possible next step is to propagate a per-repo concurrency audit-side
 fingerprint lock test (mirror of timeout-minutes), but the validation
 arc is saturated per multiple prior session memos — likely better to
 pivot to real engineering on a priority-tier repo.
+
+## 2026-06-18 — Issue #46: SESSION_PROMPT.md audit step — six fingerprints + pyyaml ensure
+**Duration:** ~25 min · **Branch:** `session/2026-06-18-2313-issue-46`
+
+- Updated `session-runner/SESSION_PROMPT.md` step 4 to name all six silent-rot fingerprints (paired-failure, stuck-registration, stale-schedule, phantom-ci, missing-timeout, missing-concurrency). The description had been stuck at the original three since PR #28 added phantom-ci on 2026-06-17, leaving every session prompt-reader miscounting expected coverage.
+- Added an idempotent pyyaml ensure to the bash one-liner — `python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml` — so the two yaml-dependent fingerprints run at full capacity on the session-runner path. Sibling to PR #45's audit-cron install: two-layer install guarantee now covers both the weekly cron path and the per-session local path.
+- Extended `tests/test_session_prompt_phase_a_audit.py` with a `FINGERPRINTS` tuple plus two new tests: a parametrized `test_audit_section_lists_fingerprint` that fails per-fingerprint when names disappear, and `test_audit_section_pyyaml_ensure` that requires both `import yaml` and `pyyaml` to appear in the audit section. Test count 157 → 164 (+7).
+
+**Why this work, this session:** Surfaced directly during this session's Phase A step 4 — read "three silent-rot fingerprints" in the prompt, then watched the audit return `skipping missing-timeout for portfolio-ops: pyyaml not installed` and `skipping missing-concurrency for portfolio-ops: pyyaml not installed`. The prompt was actively misleading about coverage AND the local audit was running at 4-of-6 capacity. Both shapes are exactly what the lock test should have caught, so this PR is both the fix and the inverse safety net for the next drift.
+
+**Open questions / blockers:** none.
+
+**Next session:** Phase A audit caps are now lock-tested against the script's docstring fingerprint list. When a seventh fingerprint lands, the per-fingerprint test will fail loudly until both `FINGERPRINTS` in the lock test and the prompt description are extended. The validation arc on the audit step is now genuinely saturated — pivot to real engineering on a priority-tier repo next.
