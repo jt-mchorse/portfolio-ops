@@ -199,6 +199,39 @@ def test_audit_section_lists_fingerprint(audit_section: str, fingerprint: str) -
     )
 
 
+def test_audit_section_exports_gh_token(audit_section: str) -> None:
+    """The audit's bash one-liner must authenticate its GitHub API calls
+    by exporting GH_TOKEN before the per-repo loop.
+
+    `scripts/audit_phase_a.py` falls back to the unauthenticated GitHub
+    API path (60 req/h) when GH_TOKEN/GITHUB_TOKEN are unset. The audit
+    makes several calls per repo (workflow list, runs, contents for the
+    yaml-dependent fingerprints), so 13 repos × several calls exhausts
+    the unauth budget partway through and the last few repos return
+    `exit 2 fetch-error` lines that look like real findings but are
+    actually self-inflicted rate-limiting. The canonical guard is:
+
+        export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null)}"
+
+    A literal text match is loose — any shape that contains both
+    ``GH_TOKEN`` and ``gh auth token`` near the audit invocation
+    satisfies the lock. Mirror of `test_audit_section_pyyaml_ensure`
+    (the local-operator sibling for both lives in
+    `scripts/README.md`, shipped in PR #45).
+    """
+    assert "GH_TOKEN" in audit_section and "gh auth token" in audit_section, (
+        "Phase A audit section in SESSION_PROMPT.md is missing the GH_TOKEN "
+        "export step. Without it, the audit's unauthenticated GitHub API "
+        "path caps at 60 req/h and surfaces 2-3 spurious `exit 2 "
+        "fetch-error` lines on the last few of the 13 repos. Restore the "
+        "idempotent guard:\n"
+        "    export GH_TOKEN=\"${GH_TOKEN:-$(gh auth token 2>/dev/null)}\"\n"
+        "(or any equivalent shape that contains both 'GH_TOKEN' and 'gh "
+        "auth token'). The local-operator sibling lives in PR #45's "
+        "scripts/README.md."
+    )
+
+
 def test_audit_section_pyyaml_ensure(audit_section: str) -> None:
     """The audit's bash one-liner must ensure pyyaml is importable before
     the per-repo loop runs.

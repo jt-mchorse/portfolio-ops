@@ -49,6 +49,12 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
    # (the two yaml-dependent fingerprints) run at full capacity. Idempotent —
    # no-op when pyyaml is already importable.
    python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
+   # Authenticate the audit's GitHub API calls — `scripts/audit_phase_a.py`
+   # reads GH_TOKEN (falls back to GITHUB_TOKEN). The unauth path is capped
+   # at 60 req/h and gets exhausted partway through 13 repos × N calls each,
+   # producing spurious `exit 2 fetch-error` lines for the last few repos.
+   # Idempotent: a pre-set GH_TOKEN wins; missing `gh` silently no-ops.
+   export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null)}"
    for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook portfolio-ops; do
      out=$(python3 scripts/audit_phase_a.py --repo "$r" 2>&1); rc=$?
      case "$rc" in
@@ -65,7 +71,7 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
    - **Fetch error (exit 2):** log and continue — a flaky GitHub API call is not a session blocker.
    - **Time-box: 5 minutes total.** Each per-repo call is ~1–2s; the whole loop runs in well under a minute. Findings reporting goes into the Phase D summary.
 
-   Rationale: the audit script was shipped in PR #20 (issue #19) with the first three fingerprints validated end-to-end; `phantom-ci` was added in PR #28 (issue #27), `missing-timeout` in PR #36 (issue #35), and `missing-concurrency` in PR #41 (issue #40). Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later. The pyyaml pre-step exists because the two yaml-dependent fingerprints lazy-import `yaml` and degrade to a stderr `skipping <check>: pyyaml not installed` note on a fresh venv — without the pre-step the audit runs at 4-of-6 capacity locally (`audit-cron.yml` installs pyyaml on the cron path, see PR #45).
+   Rationale: the audit script was shipped in PR #20 (issue #19) with the first three fingerprints validated end-to-end; `phantom-ci` was added in PR #28 (issue #27), `missing-timeout` in PR #36 (issue #35), and `missing-concurrency` in PR #41 (issue #40). Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later. The pyyaml pre-step exists because the two yaml-dependent fingerprints lazy-import `yaml` and degrade to a stderr `skipping <check>: pyyaml not installed` note on a fresh venv — without the pre-step the audit runs at 4-of-6 capacity locally (`audit-cron.yml` installs pyyaml on the cron path, see PR #45). The GH_TOKEN export bumps the GitHub API rate limit from 60 to 5000/hour so 13 repos × several calls each doesn't exhaust the unauth budget partway through and surface as spurious `exit 2 fetch-error` lines (see PR #49, issue #48; `scripts/README.md` documents the equivalent local-operator pattern from PR #45).
 
 5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through + D-009 priority tier):
 
