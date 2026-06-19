@@ -589,3 +589,18 @@ pivot to real engineering on a priority-tier repo.
 **Open questions / blockers:** none.
 
 **Next session:** Phase A audit two-layer install guarantee is now complete: pyyaml at two layers (#45, #47), GH_TOKEN at two layers (#49, #51), six-fingerprint name list at one layer (#47, the only one needed since the script docstring is authoritative). Audit-side lock arc is genuinely saturated. Pivot to a non-audit, non-portfolio-ops repo for substantive engineering next time.
+
+## 2026-06-19 — Issue #52: SESSION_PROMPT.md pyyaml install — PEP 668 escape hatch for local operator path
+**Duration:** ~35 min · **Branch:** `session/2026-06-19-issue-52`
+
+- Phase A dogfood: `python3 -m pip install --quiet pyyaml` aborted on jt's local Mac (Homebrew Python) with `error: externally-managed-environment`. The import-check at the top of the audit prelude fell through, the install failed silently, then `audit_phase_a.py` reported `skipping missing-timeout for portfolio-ops: pyyaml not installed` and the same for `missing-concurrency` — defeating the two-layer install guarantee just shipped in #45/#47.
+- Patched `session-runner/SESSION_PROMPT.md` line 51 to a three-branch fallback chain: import-check → plain `pip install` (venvs / CI / non-PEP-668) → `pip install --break-system-packages --user` (the documented PEP 668 escape hatch for Homebrew Python on macOS; `--user` is required because plain `--break-system-packages` would try to write to brew's site-packages and fail on permission). Updated the Rationale paragraph to call out the three-layer install guarantee completion.
+- Added lock test `test_audit_section_handles_pep_668` — loose substring match on `--break-system-packages` in the audit section, same shape as `test_audit_section_pyyaml_ensure` (#46) and `test_audit_section_exports_gh_token` (#48). Drop the escape hatch and CI fails with a pointer back to #52.
+- Dogfood post-fix: uninstalled pyyaml, ran the new three-branch chain verbatim from SESSION_PROMPT.md — third branch installed pyyaml 6.0.3 to user site-packages, re-ran the audit, zero `skipping` stderr lines, only the known operator-blocked `stale-schedule` finding for #17.
+- Test count: 166 → 167.
+
+**Why this work, this session:** Direct dogfood evidence in the Phase A audit step. Same pattern as #46/#48/#50 — file an issue from concrete in-session evidence, close it in the same session with the lock-test inverse-safety-net. Substantive work in an otherwise saturated portfolio state (every other repo had zero open priority:high/med issues at session start).
+
+**Open questions / blockers:** none.
+
+**Next session:** Audit-side install guarantee is now three-layer (cron #45 + session-runner pyyaml-ensure #47 + PEP 668 escape #52). Continue the multi-issue loop on a non-portfolio-ops repo per the night-session "pivot to substantive engineering" note from #50.
