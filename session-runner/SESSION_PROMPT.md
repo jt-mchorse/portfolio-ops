@@ -47,8 +47,16 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
    cd ~/projects/portfolio/portfolio-ops
    # Ensure pyyaml is present so missing-timeout + missing-concurrency
    # (the two yaml-dependent fingerprints) run at full capacity. Idempotent —
-   # no-op when pyyaml is already importable.
-   python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet pyyaml
+   # no-op when pyyaml is already importable. Three-branch fallback chain:
+   # plain `pip install` first (works in venvs, CI runners, non-PEP-668
+   # systems), then `--break-system-packages --user` (the documented PEP 668
+   # escape hatch for Homebrew Python on macOS — installs to user
+   # site-packages which is on the import path). Without the third branch
+   # the operator path silently degrades to 4-of-6 audit capacity on jt's
+   # local Mac (see PR #45 sibling on the cron path).
+   python3 -c 'import yaml' 2>/dev/null \
+     || python3 -m pip install --quiet pyyaml 2>/dev/null \
+     || python3 -m pip install --quiet --break-system-packages --user pyyaml 2>/dev/null
    # Authenticate the audit's GitHub API calls — `scripts/audit_phase_a.py`
    # reads GH_TOKEN (falls back to GITHUB_TOKEN). The unauth path is capped
    # at 60 req/h and gets exhausted partway through 13 repos × N calls each,
@@ -71,7 +79,7 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
    - **Fetch error (exit 2):** log and continue — a flaky GitHub API call is not a session blocker.
    - **Time-box: 5 minutes total.** Each per-repo call is ~1–2s; the whole loop runs in well under a minute. Findings reporting goes into the Phase D summary.
 
-   Rationale: the audit script was shipped in PR #20 (issue #19) with the first three fingerprints validated end-to-end; `phantom-ci` was added in PR #28 (issue #27), `missing-timeout` in PR #36 (issue #35), and `missing-concurrency` in PR #41 (issue #40). Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later. The pyyaml pre-step exists because the two yaml-dependent fingerprints lazy-import `yaml` and degrade to a stderr `skipping <check>: pyyaml not installed` note on a fresh venv — without the pre-step the audit runs at 4-of-6 capacity locally (`audit-cron.yml` installs pyyaml on the cron path, see PR #45). The GH_TOKEN export bumps the GitHub API rate limit from 60 to 5000/hour so 13 repos × several calls each doesn't exhaust the unauth budget partway through and surface as spurious `exit 2 fetch-error` lines (see PR #49, issue #48; `scripts/README.md` documents the equivalent local-operator pattern from PR #45).
+   Rationale: the audit script was shipped in PR #20 (issue #19) with the first three fingerprints validated end-to-end; `phantom-ci` was added in PR #28 (issue #27), `missing-timeout` in PR #36 (issue #35), and `missing-concurrency` in PR #41 (issue #40). Wiring it into Phase A ensures silent rot like the historical 17-day `.github/workflows/ci-template.yml` collision (issue #13) gets surfaced the next session, not 17 sessions later. The pyyaml pre-step exists because the two yaml-dependent fingerprints lazy-import `yaml` and degrade to a stderr `skipping <check>: pyyaml not installed` note on a fresh venv — without the pre-step the audit runs at 4-of-6 capacity locally (`audit-cron.yml` installs pyyaml on the cron path, see PR #45). The three-branch fallback chain (PR for issue #52) handles PEP 668 externally-managed Python on macOS/Homebrew: plain `pip install` covers venvs and CI runners, then `--break-system-packages --user` covers the local-operator path where Homebrew Python rejects writes to system site-packages — together with PR #45 (cron) and PR #47 (session-runner six-fingerprint sync) this completes the two-layer install guarantee so the two yaml-dependent checks are always functional. The GH_TOKEN export bumps the GitHub API rate limit from 60 to 5000/hour so 13 repos × several calls each doesn't exhaust the unauth budget partway through and surface as spurious `exit 2 fetch-error` lines (see PR #49, issue #48; `scripts/README.md` documents the equivalent local-operator pattern from PR #45).
 
 5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through + D-009 priority tier):
 

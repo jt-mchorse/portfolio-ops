@@ -19,7 +19,7 @@ naming what's missing. Mirrors the shape of
 `tests/test_session_prompt_phase_a_loop.py` (which locks the PR-review loop).
 
 Related: portfolio-ops#21 (audit wire-in), #46 (this lock's six-fingerprint
-+ pyyaml-ensure extensions).
++ pyyaml-ensure extensions), #52 (PEP 668 escape hatch for the pyyaml install).
 """
 
 from __future__ import annotations
@@ -260,6 +260,45 @@ def test_audit_section_pyyaml_ensure(audit_section: str) -> None:
         "(or any equivalent shape that contains both 'import yaml' and "
         "'pyyaml'). The cron-path sibling lives in PR #45's "
         "audit-cron.yml install step."
+    )
+
+
+def test_audit_section_handles_pep_668(audit_section: str) -> None:
+    """The audit's pyyaml-install fallback must include the PEP 668
+    escape hatch so a Homebrew-Python (externally-managed) operator
+    doesn't silently degrade to 4-of-6 audit capacity.
+
+    Plain `pip install pyyaml` aborts on PEP 668 systems with
+    `error: externally-managed-environment`. The import-check at the
+    top falls through, the install fails, then `audit_phase_a.py` runs
+    with pyyaml unavailable and `missing-timeout` plus
+    `missing-concurrency` emit `skipping <check>: pyyaml not
+    installed` to stderr. The canonical fallback chain (issue #52) is:
+
+        python3 -c 'import yaml' 2>/dev/null \\
+          || python3 -m pip install --quiet pyyaml 2>/dev/null \\
+          || python3 -m pip install --quiet --break-system-packages --user pyyaml 2>/dev/null
+
+    A loose text match on `--break-system-packages` is enough — any
+    shape that includes the PEP 668 escape hatch in the audit section
+    satisfies the lock; the `--user` flag is implied (without it the
+    install would try to write to brew's site-packages and fail on
+    permission). Sibling: `test_audit_section_pyyaml_ensure` covers
+    the import-check + install presence; this test covers PEP 668
+    robustness on top.
+    """
+    assert "--break-system-packages" in audit_section, (
+        "Phase A audit section in SESSION_PROMPT.md is missing the PEP "
+        "668 escape hatch (`--break-system-packages`). On jt's local "
+        "Mac (Homebrew Python), `pip install pyyaml` aborts with "
+        "`error: externally-managed-environment` and the audit silently "
+        "degrades to 4-of-6 capacity for `missing-timeout` and "
+        "`missing-concurrency`. Restore the three-branch fallback:\n"
+        "    python3 -c 'import yaml' 2>/dev/null \\\n"
+        "      || python3 -m pip install --quiet pyyaml 2>/dev/null \\\n"
+        "      || python3 -m pip install --quiet --break-system-packages --user pyyaml 2>/dev/null\n"
+        "(or any equivalent shape containing `--break-system-packages`). "
+        "See issue #52 for the dogfood evidence."
     )
 
 
