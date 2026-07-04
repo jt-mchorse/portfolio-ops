@@ -616,3 +616,13 @@ pivot to real engineering on a priority-tier repo.
 **Open questions / blockers:** none.
 
 **Next session:** Portfolio deeply saturated; this run also fixed prompt-regression-suite #105 (warn-band gate collapse) via a non-tier dogfood hunt round.
+
+## 2026-07-04 — DAY session (Phase A + llm-cost-optimizer #97)
+
+**Phase A:** Merged 2 clean ready PRs — prompt-regression-suite #106 (warn_band==threshold gate-collapse fix) and portfolio-ops #57 (memory). Silent-rot audit clean across 12 repos; the one finding (portfolio-ops `trending-daily` 8 consecutive failures) is the known JT-blocked #17/#56 (ANTHROPIC_API_KEY secret never configured) — no new issue.
+
+**Substantive work:** Resolved llm-cost-optimizer #97 (a decision-revisit): the batch idempotency payload hash was order-sensitive, so resubmitting the same batch in a different order raised a spurious `IdempotencyConflict`. Since the Batch API correlates results by `custom_id` (not row position), a reordered identical batch is the same workload. Made the hash order-independent (sort by `custom_id`), recorded D-013, shipped as **draft** PR #124 for JT to confirm the semantics before merge.
+
+**Saturation:** Ran 12 core-module bug-hunts across the three flagship priority-tier repos plus chunking-strategies-lab — zero real bugs. The flagship core is exhausted; future value in the saturated state comes from resolving filed `decision-revisit` issues (the objectively-correct ones), not from re-hunting core modules. Left vector-search-at-scale #71 for JT — its two resolutions produce different published recall curves (a benchmark-integrity decision).
+
+**Next session:** scan open decision-revisits first; remaining other open issues are demo/GIF captures (#18, #16×2) that need screen capture, not headless work.
