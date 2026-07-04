@@ -604,3 +604,15 @@ pivot to real engineering on a priority-tier repo.
 **Open questions / blockers:** none.
 
 **Next session:** Audit-side install guarantee is now three-layer (cron #45 + session-runner pyyaml-ensure #47 + PEP 668 escape #52). Continue the multi-issue loop on a non-portfolio-ops repo per the night-session "pivot to substantive engineering" note from #50.
+
+## 2026-07-04 — Issue #55: verified & closed the systemic symbol-resolution doc-lock propagation
+**Duration:** ~10 min · **Branch:** `session/2026-07-04-issue-55-close` (memory-only)
+
+- Phase A this DAY run merged two ready PRs (agent-orchestration-platform #90 GFM pipe-escaping; chunking-strategies-lab #107 inverted validation message), both CI-green with sensible diffs. Silent-rot audit was clean on 12 repos; the one finding (portfolio-ops trending-daily, 8 consecutive failures) is the already-tracked JT-blocked `ANTHROPIC_API_KEY` issue (#17, dup #56) — no new issue filed.
+- Independently verified #55's completion before closing rather than trusting the status tables: grepped every repo's architecture-doc test after pulling `main`. All 8 Python repos carry `test_doc_symbol_refs_resolve` (+ injected-drift inverse); all 4 TS repos carry a symbol/tool-resolution axis (nextjs #77, mcp-server-cookbook tool-names #83, ai-app #73, agent-orchestration-platform #88 — all merged). Closed #55 as completed; count-claim locking was an explicit non-goal and stays manual.
+
+**Why this work, this session:** #55 was the only actionable, non-JT-blocked open issue across the portfolio at run start (all `priority:high` empty; both `priority:med` are JT-blocked decision-revisits). Its remediation had fully landed, so verify-and-close was the correct action.
+
+**Open questions / blockers:** none.
+
+**Next session:** Portfolio deeply saturated; this run also fixed prompt-regression-suite #105 (warn-band gate collapse) via a non-tier dogfood hunt round.
