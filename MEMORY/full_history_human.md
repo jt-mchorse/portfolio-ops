@@ -634,3 +634,16 @@ pivot to real engineering on a priority-tier repo.
 **Work.** In this saturated state I ran three waves of parallel dogfood bug-hunt agents across the not-yet-saturated repos, verifying every finding firsthand before fixing. Shipped and merged four fixes, each its own issue/branch/PR/memory commit: vector-search-at-scale #76 (GFM pipe-escape in `cost_table`), embedding-model-shootout #83 (phantom column in `aggregate_markdown` when `recall_at_k` is empty), agent-orchestration-platform #91 (`read_file_at_ref` gave up on all fixtures after a non-added match), and mcp-server-cookbook #84 (non-atomic `write_file` in the Python sandbox — TS-parity atomic write). All four PRs went green and were squash-merged.
 
 **Rejected findings (5).** mcp sqlGuard underscore-boundary (deliberate — keeps `last_vacuum`/`last_analyze` queryable), prompt-regression `len(w) > 3` hint filter (intentional stopword guard), python-async-llm-pipelines (clean), ai-app-integration-tests (clean), nextjs checkpoint-stream resume leading-space (correct by design for seamless join). The entire third wave (lco cache/routing, rag telemetry/streaming, chunking boundaries) came back empty, confirming flagship non-core modules are saturated too — the stop signal. Hunt yield: 4 real fixes of 12 hunts (~33%, at baseline).
+
+## 2026-07-06 — Phase A + CI-coverage-gap lens (2 fixes)
+**Type:** DAY session · multi-issue loop
+
+Phase A: no ready PRs (all open PRs are drafts — demo GIF captures + lco#124 held for JT on D-013). Silent-rot audit clean across 12 repos; the one portfolio-ops trending-daily stale-schedule finding is the known JT-blocked #17 (Anthropic API key never configured) — no new issue.
+
+The static issue queue was exhausted (every remaining open issue is a JT-gated decision-revisit or a headless-unfriendly demo capture), so work came from a new objective lens: **CI-coverage gaps** — a shipped test suite with no CI job. It yielded two real fixes, both in multi-language repos with a second stack not wired into CI:
+- **mcp-server-cookbook #90** — the `filesystem-sandbox-py` Python parity server (74 pytest tests) had no CI job; added one (3.11/3.12 matrix, ruff + pytest). PR #93 merged.
+- **rag-production-kit #120** (filed this run) — the `demo/nextjs` Vitest suite (13 tests) never ran in CI (Python-only jobs); added a `nextjs-demo` job (node 20, typecheck + vitest). PR #121 merged.
+
+A second lens (broken internal references in README/docs) came up empty across all 12 repos — the only hits were intentional deferred-generation report placeholders (per §10). Stopped cleanly at 2 issues, within the DAY target.
+
+**Next session:** CI-coverage lens is swept (don't re-sweep). Remaining issues are all JT-gated or headless demo captures. Portfolio saturated.
