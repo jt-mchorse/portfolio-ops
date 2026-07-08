@@ -1006,3 +1006,20 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-07-08T04:08Z
+issue: null   # ADDENDUM to the 2026-07-08 night-run log above — a 5th issue + wave-5 landed after that entry was written
+focus: night_run_addendum_5th_issue_mcp_96_atomic_write_plus_wave5
+phase: night_session_addendum
+delta:
+  prs_opened_total_this_run: 5   # correction: mcp#95(issue94), aop#96(issue95), rag#127(issue126), aop#98(issue97), mcp#97(issue96)
+context_for_next_session:
+  - CORRECTION_the_prior_entry_said_4_issues_actual_final_count_5_a_5th_wave_wave5_4_orthogonal_lenses_atomicity_display_precision_config_precedence_backend_sse_framing_yielded_1_low_sev_hit
+  - 5th_issue_mcp_96_pr_97_filesystem_sandbox_atomicwritefile_temp_name_prepends_full_basename_overflows_name_max_on_255_char_basename_client_reachable_via_write_file_tool_capped_base_200_bytes
+  - filed_deferred_rag_128_priority_low_python_sibling_io_utils_py_operator_controlled_far_less_reachable_NOT_fixed
+  - TWO_pairs_of_sibling_prs_this_run_both_conflict_on_append_only_memory_readme_aop_96_and_98_plus_mcp_95_and_97_next_phase_a_merge_one_of_each_pair_then_rebase_the_other_serially
+  - final_run_5_waves_27_lens_sweeps_5_real_hits_4_solid_1_low_sev_wave3_5of5_and_wave4_3of3_empty_wave5_3of4_empty_deep_saturation_stopped_at_5_within_night_target_5_to_9_marginal_returns_diminishing_forcing_more_risks_churn
+decisions_made: []
+followups: [#128]
+---
