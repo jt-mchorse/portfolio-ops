@@ -647,3 +647,18 @@ The static issue queue was exhausted (every remaining open issue is a JT-gated d
 A second lens (broken internal references in README/docs) came up empty across all 12 repos — the only hits were intentional deferred-generation report placeholders (per §10). Stopped cleanly at 2 issues, within the DAY target.
 
 **Next session:** CI-coverage lens is swept (don't re-sweep). Remaining issues are all JT-gated or headless demo captures. Portfolio saturated.
+
+## 2026-07-10 (night) — Phase-A roll-up: 7 PR merges + 3 hits + 1 decision-revisit
+
+**Duration:** ~3h · **Branches:** per-repo `session/2026-07-10-*`
+
+**Phase A.** Merged 7 ready PRs from the prior night run (rag#137, leh#163, prs#118, pyasync#79, ems#92, lco#139, mcp#105) — all green, different repos, no sibling conflicts. Silent-rot audit clean across 12 repos except the known JT-blocked `trending-daily` stale-schedule finding (dup #56).
+
+**Work loop (3 hits, all via the sibling-incomplete-fix meta-lens on the just-merged surface, each verified firsthand before filing):**
+1. **lco#141 (issue 140)** — `_extract_first_token_logprobs` guarded None (#106) and non-finite (#95) but both `float()` coercion sites crashed on a *present-but-non-numeric* logprob element off an adapter-set/BYO distribution, aborting `route()`. Exact sibling of the just-merged #138/#139 (non-numeric judge score). Wrapped both in `try/except → abstain`.
+2. **mcp#107 (issue 106)** — the postgres-readonly guard blocked file-*read* (`pg_read_file`) and `lo_export` (#94) but missed the adminpack file-*mutation* family (`pg_file_write/unlink/rename/sync`), all confirmed `ALLOW` firsthand. Added `PG_FILE_` prefix + `pg_signal_backend`/`pg_promote`/`pg_wal_replay_*` keywords. README count 126→135.
+3. **prs#120 (issue 119)** — `diff_response`'s bare-`ValueError` range guards on `--threshold`/`--warn-band` escaped the CLI's typed-only `except` tuple → raw traceback exit 1 instead of the documented exit 2. Sibling of the just-merged #117/#118. Added a `_validate_thresholds` CLI-entry helper.
+
+**Decision-revisit (not shipped): nextjs#82** — the partial-json parser drops a started-pair inner container, losing the parent key/element (non-monotonic flicker, reachable in the shipped demo). Built and firsthand-verified a fix (remove the `frameSnapshot` pop loop) — but it fails the *explicit named `#72 guard`* tests, i.e. it overturns a deliberate prior decision. Per the handoff (§1.5), reverted the code (tree untouched, 57/57 green) and reclassified #82 as a `decision-revisit` for JT (position A: surface `{}` consistently, recommended; B: also drop the empty `{`).
+
+**Saturation.** Hunted every repo — 7 parallel agent hunts (pyasync, leh, prs, mcp, vsas, aop, nextjs, fs-sandbox) + 15+ firsthand checks (rag telemetry/citation/reranker/rewriter/db, chunking, lco router/pricing/batch/semantic_cache, ems, leh run/diff CLI) — all saturated except the 3 hits. Stopped at 3 hits + 1 decision-revisit (below the 5-9 night target) because the portfolio is decisively saturated; forcing more would be churn over the quality bar. This run's 3 PRs become the next run's freshest sibling-hunt surface.
