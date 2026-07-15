@@ -662,3 +662,36 @@ A second lens (broken internal references in README/docs) came up empty across a
 **Decision-revisit (not shipped): nextjs#82** — the partial-json parser drops a started-pair inner container, losing the parent key/element (non-monotonic flicker, reachable in the shipped demo). Built and firsthand-verified a fix (remove the `frameSnapshot` pop loop) — but it fails the *explicit named `#72 guard`* tests, i.e. it overturns a deliberate prior decision. Per the handoff (§1.5), reverted the code (tree untouched, 57/57 green) and reclassified #82 as a `decision-revisit` for JT (position A: surface `{}` consistently, recommended; B: also drop the empty `{`).
 
 **Saturation.** Hunted every repo — 7 parallel agent hunts (pyasync, leh, prs, mcp, vsas, aop, nextjs, fs-sandbox) + 15+ firsthand checks (rag telemetry/citation/reranker/rewriter/db, chunking, lco router/pricing/batch/semantic_cache, ems, leh run/diff CLI) — all saturated except the 3 hits. Stopped at 3 hits + 1 decision-revisit (below the 5-9 night target) because the portfolio is decisively saturated; forcing more would be churn over the quality bar. This run's 3 PRs become the next run's freshest sibling-hunt surface.
+
+## 2026-07-15 (night) — Phase A merges + 6 hits via sibling-incomplete-fix
+
+Merged 7 ready PRs from the prior run (aiapp#91, rag#153, lco#157, vsas#106,
+ems#106, chunking#131, nextjs#86), all green, different repos. Audit clean across
+12 repos (the one portfolio-ops trending-daily stale-schedule finding is the known
+JT-blocked one). Static priority:high queue is globally empty as usual, so all work
+came from the sibling-incomplete-fix meta-lens on the freshly-merged diffs.
+
+Shipped 6 PRs, all verified firsthand before filing:
+- rag#154 — "etc." (the most common sentence-ending abbreviation) was an
+  unconditional non-boundary, bypassing citation enforcement (sibling of the
+  ms/no/a.m. wave).
+- chunking#132 — the embedder_name header cell in _render_summary lacked the
+  newline-collapse its sibling strategy_name row cell got in #130.
+- leh#178 — @pytest.mark.eval(threshold=False) disabled the eval gate because
+  bool is an int subclass and slipped past the #154 range guard.
+- mcp#126 — pg_truncate_visibility_map (a real pg_visibility mutator) was missing
+  from the postgres-readonly denylist (sibling of the #110 storage-maintenance class).
+- nextjs#87 — the error-recovery docstring documented the error event as {reason}
+  but the drop path sends {reason, last_token} that the client depends on.
+- lco#158 — a second-order cross-repo find off leh#178: the same bool-is-int-subclass
+  gap in the router/semantic-cache config validators.
+
+New reusable lens: bool-is-an-int-subclass. Any repo that added isinstance(int,float)
+first to reject str/None config systematically misses bool (which passes that check
+and coerces in-range). Swept portfolio-wide — lco was the only gap; everything else
+was already bool-guarded or has no such seam.
+
+4 of 8 hunt agents returned SATURATED (pyasync, ems, prs, aop). Two process notes:
+mcp and nextjs agents tried to prettier-reformat repos whose CI has no prettier — I
+reverted that churn and kept minimal hand diffs. Stopped at 6 (within the 5-9 night
+target) at decisive saturation across every known lens.
