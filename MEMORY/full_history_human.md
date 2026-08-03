@@ -695,3 +695,56 @@ was already bool-guarded or has no such seam.
 mcp and nextjs agents tried to prettier-reformat repos whose CI has no prettier — I
 reverted that churn and kept minimal hand diffs. Stopped at 6 (within the 5-9 night
 target) at decisive saturation across every known lens.
+
+## 2026-08-03 — Issue #63: the audit can only see rot that turns something red
+
+All six existing fingerprints key off GitHub Actions run history — paired runs,
+stuck registrations, stale schedules, phantom runs, missing timeouts, missing
+concurrency. That is the right net for rot that shows up as failed runs. It is
+structurally blind to the opposite shape, and this session ran headfirst into
+it.
+
+`mcp-server-cookbook/servers/filesystem-sandbox-py` declared `[tool.ruff]` with
+no `[tool.ruff.lint] select`, so it inherited whatever ruff's default rule
+selection happened to be, and CI installs ruff unpinned. Same tree: 0.15.13
+passes, 0.16.1 finds 8 errors. The audit called that repo clean every session
+and was *right* to — `main` is genuinely green, because nothing had been pushed
+since before 0.16.1 landed. There were no failed runs to fingerprint. The repo
+was simply one push away from red.
+
+That also settles the follow-up floated on 2026-07-31 about adding a "main
+branch is red" check. It would not have caught this. The branch is green. The
+defect is that what CI enforces is a property of the tool's release calendar
+rather than of the repo.
+
+The new `unpinned-lint-config` fingerprint flags any `pyproject.toml` that
+configures ruff without stating its rule set. Discovery is a recursive tree walk
+rather than a root probe — root-only enumeration is precisely why the six-repo
+sweep on 2026-07-31 never looked at this repo, whose only Python package sits
+two directories down in a TS-first project. It is stdlib-only (`tomllib`), so it
+joins the tier that runs without pyyaml.
+
+It is deliberately narrow. The tempting broader version — flag every unpinned
+dev dependency — fires on all nine Python packages every session until #62 is
+decided, and an audit line the operator learns to skim past is worse than no
+line at all. Verified against all 13 live repos: exactly one finding, the one
+mcp-server-cookbook#133 fixes, so it goes quiet on that merge.
+
+One thing worth generalising. The session-prompt lock's `FINGERPRINTS` tuple
+carried a comment asking the next author to remember to update it. History shows
+that request was ignored three times — phantom-ci, missing-timeout and
+missing-concurrency all landed without it, and #46 had to backfill all three at
+once. So a comment asking someone to remember is really a bug report about a
+missing test. Replaced it with one that derives the set from the script's
+`check_*` functions; it caught this PR's own prompt update while I was writing
+it.
+
+Also worth recording for #62: a fresh-venv install-and-test sweep across all
+eight Python repos with the latest dependencies came back entirely green, so the
+dependency-drift lens is exhausted outside mcp. And the portfolio splits clean
+down the middle — the four TS repos install via `npm ci` against committed
+lockfiles, while the nine Python packages run `pip install -e '.[dev]'` with
+nothing pinned. #62 is less "should we pin ruff" than "the Python half has no
+lockfile equivalent and the JS half has had one all along."
+
+Shipped as PR #64.
