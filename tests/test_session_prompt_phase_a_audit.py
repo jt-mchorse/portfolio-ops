@@ -1,6 +1,6 @@
 """Lock the Phase A silent-rot audit step in SESSION_PROMPT.md.
 
-`scripts/audit_phase_a.py` scans for six silent-rot fingerprints across
+`scripts/audit_phase_a.py` scans for seven silent-rot fingerprints across
 portfolio repos:
 
 1. paired-failure (#19/#20)
@@ -9,6 +9,7 @@ portfolio repos:
 4. phantom-ci (#27/#28)
 5. missing-timeout (#35/#36)
 6. missing-concurrency (#40/#41)
+7. unpinned-lint-config (#63)
 
 Issue #21 wired the audit into Phase A of the canonical session prompt as
 an observational, non-blocking step that runs after the PR-review pass.
@@ -19,7 +20,9 @@ naming what's missing. Mirrors the shape of
 `tests/test_session_prompt_phase_a_loop.py` (which locks the PR-review loop).
 
 Related: portfolio-ops#21 (audit wire-in), #46 (this lock's six-fingerprint
-+ pyyaml-ensure extensions), #52 (PEP 668 escape hatch for the pyyaml install).
++ pyyaml-ensure extensions), #52 (PEP 668 escape hatch for the pyyaml install),
+#63 (unpinned-lint-config, plus the self-enforcing FINGERPRINTS bridge that
+replaces the "remember to update this list" comment).
 """
 
 from __future__ import annotations
@@ -50,12 +53,19 @@ PORTFOLIO_REPOS = (
 OPS_REPO = "portfolio-ops"
 ALL_REPOS = PORTFOLIO_REPOS + (OPS_REPO,)
 
-# The six canonical silent-rot fingerprints exposed by
+# The seven canonical silent-rot fingerprints exposed by
 # `scripts/audit_phase_a.py`. Order is the script's docstring order
 # (paired-failure, stuck-registration, stale-schedule, phantom-ci,
-# missing-timeout, missing-concurrency). When a seventh fingerprint
-# lands, add it here AND update the SESSION_PROMPT.md audit step's
-# description text — this list is the bridge between them.
+# missing-timeout, missing-concurrency, unpinned-lint-config). When an
+# eighth fingerprint lands, add it here AND update the SESSION_PROMPT.md
+# audit step's description text — this list is the bridge between them.
+#
+# `test_fingerprints_list_matches_the_script` below makes that bridge
+# self-enforcing rather than a comment someone has to remember: it derives
+# the real set from the script's `check_*` functions and fails if this
+# tuple drifts. Adding #63's `unpinned-lint-config` was the fourth time a
+# fingerprint landed in the script, and the third time the propagation was
+# a manual step that had previously been missed (see the docstring below).
 FINGERPRINTS = (
     "paired-failure",
     "stuck-registration",
@@ -63,6 +73,7 @@ FINGERPRINTS = (
     "phantom-ci",
     "missing-timeout",
     "missing-concurrency",
+    "unpinned-lint-config",
 )
 
 # The audit step lives between the PR-review override note and the repo-pick
@@ -316,4 +327,38 @@ def test_audit_loop_matches_pr_review_loop(prompt_text: str, audit_loop_repos: l
         f"different repo sets.\n  PR-review: {pr_review_repos}\n  audit:     "
         f"{audit_loop_repos}\nKeep both loops in lockstep so a repo can't be "
         "scanned-but-not-audited or audited-but-not-scanned."
+    )
+
+
+def test_fingerprints_list_matches_the_script() -> None:
+    """`FINGERPRINTS` must equal the set the script actually implements.
+
+    The bridge between the script and SESSION_PROMPT.md used to be a comment
+    asking the next author to remember. It was missed for phantom-ci,
+    missing-timeout and missing-concurrency alike — #46 had to backfill all
+    three at once. This derives the truth from the script instead: every
+    `check_<name>` function is a fingerprint, and its kind is the name with
+    underscores swapped for hyphens.
+
+    So an eighth fingerprint fails here the moment it is wired up, naming
+    exactly what is missing, rather than silently never reaching the prompt.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("audit_phase_a", AUDIT_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    implemented = {
+        name[len("check_") :].replace("_", "-")
+        for name in dir(mod)
+        if name.startswith("check_") and callable(getattr(mod, name))
+    }
+    assert implemented == set(FINGERPRINTS), (
+        "FINGERPRINTS has drifted from scripts/audit_phase_a.py. "
+        f"Only in the script: {sorted(implemented - set(FINGERPRINTS))}. "
+        f"Only in this list: {sorted(set(FINGERPRINTS) - implemented)}. "
+        "Add the new fingerprint to FINGERPRINTS *and* name it in the Phase A "
+        "audit step of session-runner/SESSION_PROMPT.md."
     )

@@ -964,3 +964,175 @@ def test_format_finding_renders_missing_concurrency(audit_module):
     assert "anyrepo" in line
     assert "ci" in line
     assert ".github/workflows/ci.yml" in line
+
+
+# --- unpinned-lint-config (#63) -------------------------------------------
+#
+# The first six fingerprints all key off Actions run history, so they only
+# see rot that manifests as red runs. This one is latent-green: the repo is
+# genuinely green and one push away from red. `mcp-server-cookbook` audited
+# clean every session while its Python package inherited ruff's shifting
+# defaults (mcp-server-cookbook#132/#133).
+
+_RUFF_NO_SELECT = """\
+[project]
+name = "demo"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+"""
+
+_RUFF_WITH_SELECT = """\
+[project]
+name = "demo"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "PT"]
+ignore = ["E501"]
+"""
+
+_NO_RUFF_AT_ALL = """\
+[project]
+name = "demo"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+"""
+
+
+def _tree(*paths: str) -> dict:
+    return {"tree": [{"path": p, "type": "blob"} for p in paths]}
+
+
+def test_check_unpinned_lint_config_flags_ruff_without_select(audit_module):
+    """[tool.ruff] with no [tool.ruff.lint] select is the mcp#132 shape."""
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64(_RUFF_NO_SELECT)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["kind"] == "unpinned-lint-config"
+    assert findings[0]["path"] == "pyproject.toml"
+    assert findings[0]["repo"] == "anyrepo"
+
+
+def test_check_unpinned_lint_config_clean_when_select_declared(audit_module):
+    """An explicit select list pins the rule set — nothing to flag."""
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64(_RUFF_WITH_SELECT)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_unpinned_lint_config_ignores_packages_not_using_ruff(audit_module):
+    """No [tool.ruff] means ruff isn't the tool in play; not this check's business."""
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64(_NO_RUFF_AT_ALL)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_unpinned_lint_config_clean_when_repo_has_no_pyproject(audit_module):
+    """A pure-TypeScript repo has nothing to say here."""
+    responses = {"git/trees": _tree("package.json", "src/index.ts")}
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_unpinned_lint_config_finds_nested_packages(audit_module):
+    """Regression for the miss that motivated this fingerprint.
+
+    The 2026-07-31 six-repo ruff sweep enumerated repos by their *root*
+    `pyproject.toml` and so never looked at `mcp-server-cookbook`, whose only
+    Python package lives at `servers/filesystem-sandbox-py/`. Discovery must
+    be a recursive tree walk, not a root probe.
+    """
+    responses = {
+        "git/trees": _tree(
+            "package.json",
+            "servers/filesystem-sandbox/package.json",
+            "servers/filesystem-sandbox-py/pyproject.toml",
+        ),
+        "contents/servers/filesystem-sandbox-py/pyproject.toml": {
+            "content": _b64(_RUFF_NO_SELECT)
+        },
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["path"] == "servers/filesystem-sandbox-py/pyproject.toml"
+
+
+def test_check_unpinned_lint_config_flags_each_package_independently(audit_module):
+    """A monorepo with two offending packages surfaces two findings."""
+    responses = {
+        "git/trees": _tree("a/pyproject.toml", "b/pyproject.toml"),
+        "contents/a/pyproject.toml": {"content": _b64(_RUFF_NO_SELECT)},
+        "contents/b/pyproject.toml": {"content": _b64(_RUFF_NO_SELECT)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert {f["path"] for f in findings} == {"a/pyproject.toml", "b/pyproject.toml"}
+
+
+def test_check_unpinned_lint_config_tolerates_unparseable_toml(audit_module):
+    """A config auditor must not be the thing that crashes on a broken config."""
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64("[tool.ruff\nthis is not toml")},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert findings == []
+
+
+def test_check_unpinned_lint_config_treats_empty_select_as_unpinned(audit_module):
+    """`select = []` states nothing; it leaves the effective rule set to ruff."""
+    empty = _RUFF_WITH_SELECT.replace(
+        'select = ["E", "F", "I", "B", "UP", "SIM", "PT"]', "select = []"
+    )
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64(empty)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_unpinned_lint_config("anyrepo", token=None)
+    assert len(findings) == 1
+
+
+def test_format_finding_renders_unpinned_lint_config(audit_module):
+    line = audit_module.format_finding(
+        {
+            "kind": "unpinned-lint-config",
+            "repo": "mcp-server-cookbook",
+            "path": "servers/filesystem-sandbox-py/pyproject.toml",
+        }
+    )
+    assert "[unpinned-lint-config] mcp-server-cookbook" in line
+    assert "servers/filesystem-sandbox-py/pyproject.toml" in line
+    assert "[tool.ruff.lint]" in line
+
+
+def test_audit_repo_includes_unpinned_lint_config(audit_module):
+    """The check must actually be wired into audit_repo, not just defined."""
+    responses = {
+        "git/trees": _tree("pyproject.toml"),
+        "contents/pyproject.toml": {"content": _b64(_RUFF_NO_SELECT)},
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.audit_repo("anyrepo", token=None)
+    assert any(f["kind"] == "unpinned-lint-config" for f in findings)
