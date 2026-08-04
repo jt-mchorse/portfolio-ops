@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase A operational-health audit.
 
-Catches six silent-rot fingerprints across the 13 portfolio repos:
+Catches seven silent-rot fingerprints across the 13 portfolio repos:
 
 1. paired-failure  — a single push-event SHA produces multiple workflow runs
                      with conflicting conclusions (one success + one failure).
@@ -35,6 +35,15 @@ Catches six silent-rot fingerprints across the 13 portfolio repos:
                          though the in-flight run is immediately superseded.
                          A `cancel-in-progress: true` group cuts wall time
                          by 30-60s per superseded run (#40).
+7. unpinned-lint-config — a `pyproject.toml` that declares `[tool.ruff]`
+                         but no `[tool.ruff.lint] select`, so the enforced
+                         rule set is whatever the installed ruff defaults
+                         to. The first six fingerprints all key off Actions
+                         run history and therefore only see rot that shows
+                         up as *red runs*; this one is latent-green rot.
+                         `mcp-server-cookbook` audited clean every session
+                         while sitting one push away from 8 lint errors
+                         (#63; fixed in mcp-server-cookbook#132/#133).
 
 Mostly stdlib (urllib.request + json). The missing-timeout and
 missing-concurrency fingerprints are the two exceptions — both
@@ -44,7 +53,8 @@ stdlib-only and run regardless.
 
 Dependencies:
   - Stdlib only is enough to run paired-failure, stuck-registration,
-    stale-schedule, and phantom-ci.
+    stale-schedule, phantom-ci, and unpinned-lint-config (the last uses
+    `tomllib`, stdlib since 3.11, so it adds no dependency).
   - `pyyaml` is required for `missing-timeout` and `missing-concurrency`
     to do real work. Install it with `pip install pyyaml` (or `pip
     install -r scripts/requirements.txt`). Without it, the two yaml-
@@ -447,6 +457,103 @@ def check_missing_concurrency(repo: str, token: str | None) -> list[dict]:
     return findings
 
 
+def _default_branch(repo: str, token: str | None) -> str:
+    """The repo's default branch, for tree listing. Falls back to `main`."""
+    try:
+        return _gh_get(f"/repos/{REPO_OWNER}/{repo}", token).get("default_branch") or "main"
+    except urllib.error.HTTPError:
+        return "main"
+
+
+def _pyproject_paths(repo: str, token: str | None) -> list[str]:
+    """Every `pyproject.toml` in the repo, at any depth.
+
+    Deliberately a recursive tree listing rather than a root-only probe.
+    Root-only discovery is exactly why the 2026-07-31 six-repo ruff sweep
+    missed `mcp-server-cookbook`: a TS-first repo whose only Python package
+    sits at `servers/filesystem-sandbox-py/`, two directories down.
+    """
+    branch = _default_branch(repo, token)
+    try:
+        tree = _gh_get(
+            f"/repos/{REPO_OWNER}/{repo}/git/trees/{branch}?recursive=1", token
+        )
+    except urllib.error.HTTPError:
+        return []
+    return [
+        entry["path"]
+        for entry in tree.get("tree", [])
+        if entry.get("type") == "blob"
+        and entry.get("path", "").rsplit("/", 1)[-1] == "pyproject.toml"
+    ]
+
+
+def check_unpinned_lint_config(repo: str, token: str | None) -> list[dict]:
+    """Flag Python packages that use ruff without declaring its rule set.
+
+    A `pyproject.toml` with `[tool.ruff]` but no `[tool.ruff.lint] select`
+    inherits whatever ruff's *default* rule selection happens to be on the
+    day CI runs. Combined with the portfolio's unpinned
+    `pip install -e '.[dev]'`, that means what CI enforces is a property of
+    ruff's release calendar rather than of the repo.
+
+    This is the shape the other six fingerprints structurally cannot see.
+    They all key off Actions run history, so they catch rot that manifests
+    as *red runs*. This one is latent-green: `mcp-server-cookbook` audited
+    clean every session while sitting one push away from 8 lint errors,
+    because nothing had been pushed since before ruff 0.16.1 landed
+    (#132/#133). A "main branch is red" fingerprint would not have caught
+    it either — the branch is genuinely green.
+
+    Deliberately narrow. The broader check — "flag every unpinned dev
+    dependency" — fires on all nine Python packages every session until the
+    pinning decision in #62 lands, and an audit line the operator learns to
+    skim past is worse than no line at all. This one is expected to report
+    zero findings, so a finding means a real regression or a newly added
+    package.
+
+    Stdlib-only (`tomllib`, 3.11+), so it stays in the tier that runs
+    without pyyaml alongside the other four stdlib checks.
+    """
+    import base64
+    import tomllib
+
+    findings: list[dict] = []
+    for path in _pyproject_paths(repo, token):
+        try:
+            content_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/contents/{path}", token)
+        except urllib.error.HTTPError:
+            # Can't read it — skip rather than false-positive.
+            continue
+        encoded = content_data.get("content", "")
+        if not encoded:
+            continue
+        try:
+            text = base64.b64decode(encoded).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            continue
+        try:
+            parsed = tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            # Unparseable TOML is a different (and louder) problem; a config
+            # auditor should not be the thing that crashes on it.
+            continue
+        ruff_cfg = parsed.get("tool", {}).get("ruff")
+        if not isinstance(ruff_cfg, dict):
+            # Doesn't configure ruff at all — nothing to pin.
+            continue
+        select = ruff_cfg.get("lint", {}).get("select")
+        if not select:
+            findings.append(
+                {
+                    "kind": "unpinned-lint-config",
+                    "repo": repo,
+                    "path": path,
+                }
+            )
+    return findings
+
+
 def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings: list[dict] = []
     findings.extend(check_paired_failure(repo, token))
@@ -455,6 +562,7 @@ def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings.extend(check_phantom_ci(repo, token))
     findings.extend(check_missing_timeout(repo, token))
     findings.extend(check_missing_concurrency(repo, token))
+    findings.extend(check_unpinned_lint_config(repo, token))
     return findings
 
 
@@ -492,6 +600,12 @@ def format_finding(f: dict) -> str:
         return (
             f"  [{kind}] {repo}: workflow {f['workflow_name']!r} "
             f"({f['workflow_path']}) has no top-level `concurrency:` group"
+        )
+    if kind == "unpinned-lint-config":
+        return (
+            f"  [{kind}] {repo}: {f['path']} configures [tool.ruff] but "
+            f"declares no [tool.ruff.lint] select — the enforced rule set is "
+            f"whatever the installed ruff defaults to"
         )
     return f"  [{kind}] {repo}: {f}"
 
