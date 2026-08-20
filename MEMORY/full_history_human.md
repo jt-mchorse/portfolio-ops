@@ -748,3 +748,83 @@ nothing pinned. #62 is less "should we pin ruff" than "the Python half has no
 lockfile equivalent and the JS half has had one all along."
 
 Shipped as PR #64.
+
+## 2026-08-20 — night run: 11 merges, 8 issues across 8 repos
+
+**Phase A** merged eleven PRs. Ten went straight through. The eleventh,
+`agent-orchestration-platform#121`, arrived `MERGEABLE`/`CLEAN` with every check
+green and a diff that read `Binary files a/src/eval/score.ts and b/... differ`.
+The tie-break key from #120 used U+0000 as its separator and had been committed
+as a *literal* NUL; git treats any blob with a NUL in its first 8000 bytes as
+binary, so the one file whose ordering semantics were the entire point of the PR
+had no reviewable diff, no blame, and no three-way merge. Nothing in the
+toolchain could have caught it — the *string* is identical either way, so tsc,
+vitest and lint are structurally blind. Green CI plus MERGEABLE/CLEAN is not a
+reviewable diff. I swept all eleven open PRs for control bytes before touching
+it; only that file hit, and notably `mcp-server-cookbook#140` — a PR entirely
+*about* control-character trim parity — came back clean, because it built every
+character from a codepoint.
+
+**Two lenses dominated the eight issues.**
+
+The first: *a default that lands at an extreme of a comparison is not a neutral
+default.* It paid three times. `chunking-strategies-lab#160` published `0.000`
+for a measurement never taken, so a strategy that really scored recall@5 = 0.90
+rendered as zero on every column. `embedding-model-shootout#123` made `0.0` the
+worst value on the Pareto quality axis, so a 0.97-recall model was dominated by
+a 0.12-recall one and dropped from the published frontier.
+`ai-app-integration-tests#99` scored two empty token sets as 1.0, so an empty
+model response *passed* a semantic assertion. The question that finds all three:
+where in the comparison's range does the default sit?
+
+The second: *a sort or selection with no tiebreak*, three more times —
+`llm-eval-harness#206`, `llm-cost-optimizer#188`, `rag-production-kit#180`. The
+distinction that mattered each time was content versus position: a tiebreak on a
+rowid or a scan index removes the dependence on the iteration mechanism but not
+on the write order, which is the actual defect. And there's a reachability tell
+worth reusing — `utc_now_iso()` returned one distinct value across 2000
+back-to-back calls, and six consecutive real `run_suite()` calls all landed on
+one second. Measure the timestamp resolution before deciding a tie is exotic.
+
+**A method that paid twice in one run:** after shipping a fix, grep the whole
+portfolio for the pattern you just fixed. A `.get(<key>, 0)` sweep returned four
+more sites in `embedding-model-shootout`'s plot renderer and the stdout line in
+`chunking-strategies-lab`'s runner — both in PRs I had just opened. Second
+passes shipped to both. The judgement that goes with it: the plot sites were
+already unreachable, but only by call order, and a guarantee that depends on
+statement order is not a guarantee. The chunking one was unreachable too, and I
+fixed it anyway while pinning the invariant with a test, so the direct index is
+provably safe rather than assumed safe.
+
+**The honesty case of the run** was `embedding-model-shootout#123`. A
+pre-existing test had *named and asserted* the behaviour I filed as a defect. I
+didn't know when I filed, and running the whole suite rather than just my new
+file is what surfaced it. I posted a correction on the issue, gave the reasoning
+for overriding it, named the defensible opposite reading, said it's cheap to
+revert, and rewrote the test in place with the old expectation verbatim in its
+docstring. A test that pins observed behaviour isn't the same as a decision —
+but the distinction has to be argued, not assumed.
+
+**Two things I declined to file.** `python-async-llm-pipelines`'s
+`docs_per_second` falls back to `0.0` where `attach_speedup` sixty lines later
+uses `None` for the identical undefined division — and that function's comment
+argues against `0.0` explicitly. But I measured `elapsed == 0` as unreachable: 0
+of 8000 runs, even with a do-nothing pipeline and an empty doc list. A dead
+branch isn't worth a `priority:high` issue, and padding the count would be worse
+than stopping at eight. Same call on an `?? 0` in `agent-orchestration-platform`
+that only feeds a log line.
+
+**Two thorough empty hunts**, both in `vector-search-at-scale`: exact cosine ties
+at the top-k boundary are unreachable with the shipped Gaussian corpus (zero
+across five workload shapes × 200 queries, minimum boundary gap ~300 ulp above
+float32 noise), and `_percentile` matches numpy's linear method exactly across
+thirty cases.
+
+All eight PRs were left ready, mergeable and fully green, one per repo — so no
+same-repo MEMORY conflicts next Phase A. The `aop` two-PR conflict the previous
+run warned about materialized exactly as predicted and was resolved by serial
+rebase keeping both append-only blocks.
+
+**Process note, third run running:** I believed 200 minutes had passed when 79
+had. Reading `date` instead of estimating is why the last four issues happened
+at all.
