@@ -828,3 +828,93 @@ rebase keeping both append-only blocks.
 **Process note, third run running:** I believed 200 minutes had passed when 79
 had. Reading `date` instead of estimating is why the last four issues happened
 at all.
+
+---
+
+## 2026-08-24 (night) — 8 Phase-A merges, 12 issues closed across 11 repos
+
+**Phase A.** All eight ready PRs from the 2026-08-21 run merged clean — one per
+repo again, so no MEMORY conflicts, which is the fourth consecutive run that
+prediction has held. The seven-fingerprint audit came back 12-of-13 clean, with
+the one known finding unchanged since 2026-08-12: `portfolio-ops`'
+`trending-daily` workflow has 8 consecutive failures because `ANTHROPIC_API_KEY`
+was never configured. That is JT-blocked and no new issue was filed.
+
+**The method that dominated the run.** Sweeping the portfolio for a
+just-shipped pattern produced **four whole issues from one grep**. `nextjs#104`
+turned up `process.env.X ?? "default"` failing to default a *set-but-empty*
+string; running that same grep across the four TypeScript repos produced
+`ai-app-integration-tests#101`, `mcp-server-cookbook#145` and
+`agent-orchestration-platform#124`. Third run running that this has been the
+highest-yield method I have.
+
+**But the sharper form of the lens isn't the grep.** It is: *enumerate every
+site the rule applies to and diff their conventions.* In every case the defect
+was the minority spelling:
+
+- `aop` had four env reads and three conventions — two already correct.
+- `pyasync`'s `Workload` had four fields; three rejected `bool`, and the fourth
+  was the one the published benchmark numbers are built on.
+- `ai-app-integration-tests` had two readers of one env var disagreeing on **8
+  of 13** values, every disagreement in the unsafe direction.
+
+The tightest instance was one line apart inside one function: `aop`'s
+`resolveToken` does `if (opts.token)` (truthy, correct) and then
+`process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN` (nullish, wrong).
+
+**A comment that enumerates hazards is a checklist.** Three findings came from
+ticking one off field by field. `pyasync#96`'s comment says "bool subclasses int
+and flattens operator intent" and names the harm for the one field it skipped.
+`rag#184`'s finiteness sweep covered three of four floats and missed `ts` — the
+key every read path filters and orders on. `prs#147`'s guard was *literally*
+conditioned on one branch of its own function.
+
+**Three things worth carrying forward as new rules.**
+
+*The same harm by a quieter road.* `prs#147`: the float branch emitted a bare
+`Infinity` token — invalid JSON, so a decoder rejects loudly. The integer branch
+emitted **valid** JSON that `JSON.parse`, `jq` and most Go/Rust `float64`
+decoders turn into `Infinity` with no error at all. When you find a
+non-finite-at-egress fix, ask whether a large *finite* value reaches the same
+place through the consumer's double conversion.
+
+*A SQLite column type is not a constraint.* `rag#184`: `ts REAL NOT NULL` stored
+the string `"2026-08-24"` — `typeof(ts)` came back `text`, because affinity is a
+preference. TEXT sorts above every REAL, so it sat in **every** `last_24h()`
+window forever and round-tripped out as a `str` in a `float`-annotated field.
+
+*When a package boundary forbids sharing a rule, lock the mirror by executing
+both.* `aiapp#101`: `example-app/` has its own `package.json`, so the rule lives
+twice and a parity test runs both over a 24-value matrix — a differential test,
+not a text comparison. Verified by deleting `"live"` from the mirror: 4 of 26
+parity tests failed. And the parity test needs its own anti-vacuous guard,
+because a parity assertion over a tiny matrix proves nothing.
+
+**Two process mistakes, one of them new.** In `ems` I ran the anti-vacuous
+revert *before* committing and `git checkout --` discarded the uncommitted fix;
+that rule is already in my notes and I still slipped on the eighth issue. The new
+one is better: in `mcp#145`, `test/repo-stats-readme.test.ts` computes its
+expected counts from `git ls-files`, so my new test file was **invisible to it
+while untracked** and counted the moment it was committed. The suite passed
+locally and failed on CI. "Suite green before `git add`" is not the same
+statement as "suite green".
+
+**A negative result worth recording.** I swept all eight Python repos for
+`os.environ.get` / `os.getenv`, looking for the Python analogue of the `??`
+class. Every site uses `or`, which treats `""` as falsy correctly. The Python
+half of the portfolio is clean on that class.
+
+**Three decisions recorded**, and the interesting part is that two of them
+deliberately *don't* inherit their siblings' rationale. `llm-eval-harness`
+**D-017** decides that the all-zero `hash_embed` vector means *uncomparable* —
+rejecting on the authored golden side, counting on the sampled candidate side.
+`chunking-strategies-lab` **D-013** and `prompt-regression-suite` **D-009** both
+adopt the non-strict mypy gate, mirroring `llm-eval-harness` D-016 and
+`llm-cost-optimizer` D-014 *in shape but not in rationale*: those two justify
+theirs by shipping a `py.typed` marker, and neither of these repos does. The case
+in both is latent-green rot. When copying a sibling repo's decision, check
+whether its rationale transfers or only its config.
+
+**Untouched:** `vector-search-at-scale` only. Both its open issues are JT-gated
+decision-revisits (#71, #78) and it had two thorough empty hunts on 2026-08-20.
+I stopped rather than force a thirteenth issue.
