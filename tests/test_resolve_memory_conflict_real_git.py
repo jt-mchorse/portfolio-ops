@@ -245,7 +245,7 @@ def test_the_shape_guard_refuses_to_write_a_duplicated_key(tmp_path: Path, mod) 
         "---\nsession: A\nfocus: aaa\n"
         "decisions_made: [D-015]\ndecisions_made: []\nfollowups: []\n---\n"
     )
-    with pytest.raises(RuntimeError, match="decisions_made"):
+    with pytest.raises(RuntimeError, match="resolution introduced"):
         mod.check_block_shape(bad, Path("MEMORY/full_history_ai.md"))
 
 
@@ -257,6 +257,41 @@ def test_the_shape_guard_passes_a_healthy_file(tmp_path: Path, mod) -> None:
         "---\nsession: B\nfocus: bbb\ndecisions_made: []\nfollowups: []\n---\n"
     )
     mod.check_block_shape(good, Path("MEMORY/full_history_ai.md"))
+
+
+def test_the_shape_guard_tolerates_a_block_with_no_trailer(mod) -> None:
+    """Absence is not duplication.
+
+    The first version of this guard asserted "exactly one" and immediately
+    refused to write a real file: a 2026-08-19 block in
+    `agent-orchestration-platform`, and one in portfolio-ops itself, simply have
+    no `decisions_made:` line. That is a pre-existing shape this tool never
+    created, and only `> 1` is the case that loses data.
+    """
+    no_trailer = "---\nsession: A\nfocus: aaa\n---\n"
+    mod.check_block_shape(no_trailer, Path("MEMORY/full_history_ai.md"))
+
+
+def test_pre_existing_damage_elsewhere_does_not_block_a_new_resolution(mod) -> None:
+    """The guard compares against `before`, not against zero.
+
+    Found by running it on the portfolio's real history: two blocks — this repo's
+    2026-05-27T15:25Z and `prompt-regression-suite`'s 2026-08-07T07:25Z — are each
+    two session entries fused into one with no `---` between them, so each carries
+    two `decisions_made:` lines. Those are already-committed instances of this very
+    class, from before the tool was fixed. Refusing to resolve around them would
+    make the tool unusable on exactly the files that need it.
+    """
+    damaged = (
+        "---\nsession: OLD\nfocus: legacy\ndecisions_made: []\nfollowups: []\n"
+        "session: OLDER\nfocus: legacy2\ndecisions_made: []\nfollowups: []\n---\n"
+    )
+    assert mod.count_duplicated_trailers(damaged) == 1
+    # Tolerated when it was already there...
+    mod.check_block_shape(damaged, Path("x"), before=1)
+    # ...and still caught when the resolution is what introduced it.
+    with pytest.raises(RuntimeError, match="resolution introduced"):
+        mod.check_block_shape(damaged, Path("x"), before=0)
 
 
 def test_the_markdown_path_still_works_on_a_real_conflict(tmp_path: Path, mod) -> None:

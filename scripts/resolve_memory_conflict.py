@@ -116,8 +116,22 @@ def resolve_yaml(text: str) -> str:
     return CONFLICT.sub(repl, text)
 
 
-def check_block_shape(text: str, path: Path) -> None:
-    """Raise unless every session block carries exactly one of each trailer key.
+def count_duplicated_trailers(text: str) -> int:
+    """How many session blocks carry a duplicated trailer key."""
+    n_bad = 0
+    for block in text.split("\n---\n"):
+        if "session:" not in block:
+            continue
+        for key in TRAILER_KEYS:
+            n = block.count(f"\n{key}") + (1 if block.startswith(key) else 0)
+            if n > 1:
+                n_bad += 1
+                break
+    return n_bad
+
+
+def check_block_shape(text: str, path: Path, *, before: int = 0) -> None:
+    """Raise if any session block carries a DUPLICATED trailer key.
 
     `_process` already refuses to write a file with conflict markers left in it.
     A file that *looks* well-formed but carries a duplicated `decisions_made:`
@@ -126,22 +140,47 @@ def check_block_shape(text: str, path: Path) -> None:
 
     This guard, not the resolution logic, is what would have caught the original
     defect: the resolver's output parsed fine, read plausibly, and lost data.
+
+    Duplication only, deliberately -- an *absent* trailer is tolerated. The first
+    version of this asserted "exactly one" and immediately refused to write a
+    real file, because a session block from 2026-08-19 in
+    `agent-orchestration-platform` (and one in this repo) simply has no
+    `decisions_made:` line. That is a pre-existing shape this tool never created
+    and has no business refusing to resolve around. Only `> 1` is the failure
+    mode that loses data, because YAML resolves a duplicate key in favour of the
+    last one.
+
+    And it compares against `before` rather than checking absolutely, so
+    PRE-EXISTING damage elsewhere in the file does not block a new resolution.
+    Both narrowings were found by running the guard against the portfolio's real
+    history instead of fixtures: the "exactly one" version refused a live file
+    because two historical blocks have no `decisions_made:` at all, and the
+    absolute version then refused because two OTHER blocks -- this repo's
+    2026-05-27T15:25Z and `prompt-regression-suite`'s 2026-08-07T07:25Z -- are
+    each two session entries fused into one with no `---` between them. Those are
+    already-committed instances of this very class, from before the tool was
+    fixed, and refusing to resolve around them would make the tool unusable on
+    exactly the files that need it.
     """
+    after = count_duplicated_trailers(text)
+    if after <= before:
+        return
     for block in text.split("\n---\n"):
         if "session:" not in block:
             continue
         for key in TRAILER_KEYS:
             n = block.count(f"\n{key}") + (1 if block.startswith(key) else 0)
-            if n != 1:
+            if n > 1:
                 first = next(
                     (ln for ln in block.splitlines() if ln.startswith("session:")),
                     "<unknown>",
                 )
                 raise RuntimeError(
-                    f"{path}: block '{first}' has {n} `{key}` lines after resolution "
-                    f"(expected exactly 1). Refusing to write -- a duplicated key is "
-                    f"silently resolved by YAML in favour of the LAST one, which would "
-                    f"discard what the session recorded. Inspect manually."
+                    f"{path}: resolution introduced a duplicated trailer key -- block "
+                    f"'{first}' has {n} `{key}` lines (was {before} bad block(s) before, "
+                    f"{after} after). Refusing to write: a duplicated key is silently "
+                    f"resolved by YAML in favour of the LAST one, which would discard "
+                    f"what the session recorded. Inspect manually."
                 )
 
 
@@ -177,7 +216,7 @@ def _process(path: Path, resolver, dry_run: bool) -> bool:
             "not match the expected append-only pattern. Inspect manually."
         )
     if resolver is resolve_yaml:
-        check_block_shape(resolved, path)
+        check_block_shape(resolved, path, before=count_duplicated_trailers(original))
     if dry_run:
         print(f"would resolve: {path}")
     else:
