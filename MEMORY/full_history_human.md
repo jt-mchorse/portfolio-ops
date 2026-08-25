@@ -918,3 +918,85 @@ whether its rationale transfers or only its config.
 **Untouched:** `vector-search-at-scale` only. Both its open issues are JT-gated
 decision-revisits (#71, #78) and it had two thorough empty hunts on 2026-08-20.
 I stopped rather than force a thirteenth issue.
+
+## 2026-08-25 — the MEMORY conflict resolver was erasing `decisions_made` (#65)
+
+**What got done.** `resolve_memory_conflict.py` hardcoded the trailer it reattaches
+to the first block as `decisions_made: []` + `followups: []`. Git hoists the two
+blocks' common suffix out of a conflict region line by line, so that literal is
+the whole trailer only when *both* sessions recorded nothing. When one recorded a
+decision, only `followups: []` is common — `decisions_made:` differs and stays
+inside the region, still attached to block A — so the hardcoded pair landed on top
+of a real one, producing a duplicate key. `yaml.safe_load` keeps the last
+duplicate, so the recorded decision read as `[]`, and the tool printed `resolved:`
+and exited 0.
+
+**How it was found.** Phase A of this same run hit a MEMORY rebase conflict and I
+resolved it by hand. The repo ships a tool for exactly that, so afterwards I went
+back and ran it against the shape. Running the shipped tool on the situation you
+just had by hand is a cheap, repeatable lens.
+
+**How often the precondition was false.** Of the ten session entries written
+tonight, seven had a non-empty trailer. The tool was correct on the three sessions
+that recorded nothing and destroyed the record on the seven that recorded
+something — it failed precisely on the entries worth writing down.
+
+**Why the existing tests missed it, in their own words.** `Fixtures here are
+hand-rolled minimal shapes — no real repo state required.` A hand-rolled fixture
+is written to match the shape the code expects, so it can never discover a shape
+git actually produces. Every case in the new file is built with `git init`, two
+branches and a real `git rebase`.
+
+**The guard is worth more than the fix.** `check_block_shape` refuses to write
+when any block has other than exactly one `decisions_made:` and one `followups:`.
+`_process` already refused to write a file with conflict markers left in it; a
+file that *looks* well-formed but silently lost data is the same class of failure,
+and worse, because it parses. Reverting the fix alone turns 6 tests red; reverting
+the fix *and* the guard turns 4 red — so the guard catches two cases nothing else
+would.
+
+**A second defect my own test found.** The YAML round-trip assertion failed on
+`followups: [#107]`: `#` starts a comment in YAML, so the flow sequence is
+unterminated. Measured across the portfolio, 74 of 936 session blocks fail
+`yaml.safe_load`, 71 of them for exactly this reason, in all thirteen repos. Filed
+as #66. The case is excluded from the round-trip test *with the reason stated and
+pinned*, rather than papered over.
+
+**Drive-by, same file.** `scripts/README.md` said the audit ships "Six"
+fingerprints; it ships seven. Corrected, and called out in the PR rather than
+smuggled in.
+
+**Tests.** 16 new, all built from real git conflicts. Suite 179 → 195 green.
+
+## 2026-08-25 — the new guard was too strict, twice (#65 follow-up)
+
+**What happened.** I shipped `check_block_shape` and then ran it against the
+portfolio's real history, where it was wrong twice.
+
+First, "every block has exactly one trailer key" refused to write a live file:
+a 2026-08-19 block in `agent-orchestration-platform`, and one in portfolio-ops
+itself, have no `decisions_made:` line at all. Absence is a pre-existing shape
+this tool never created, and only duplication loses data.
+
+Then the absolute `> 1` check refused for a different reason: two *other* blocks
+— this repo's 2026-05-27T15:25Z and `prompt-regression-suite`'s 2026-08-07T07:25Z
+— are each two session entries fused into one with no `---` between them, so each
+carries two `decisions_made:` lines. Those are already-committed instances of the
+very class #65 fixes, from before the fix existed. A guard that refuses to operate
+on files that already have the damage is useless on exactly the files that need
+it, so it now compares against a `before` count and fires only when the resolution
+itself introduced duplication.
+
+**The lesson is the one my own test file argues.** Building the fixtures from real
+`git rebase` conflicts was the right call and it still missed both of these,
+because a freshly-`git init`ed fixture repo has no history to be malformed. Run a
+new guard against real data as well as against fixtures.
+
+**It validated itself end to end.** Rebasing this branch onto `main` produced a
+genuine append-only MEMORY conflict — and the fixed resolver resolved it
+correctly: both session blocks intact, one trailer each, both `yaml.safe_load`-able.
+The tool fixed the conflict its own PR created.
+
+**Not repaired here.** The two fused historical blocks are also among the 74
+unparseable ones from #66. MEMORY is append-only and repairing history is JT's
+call, so they are noted rather than rewritten.
