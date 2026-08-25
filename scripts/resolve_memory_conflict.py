@@ -59,21 +59,90 @@ CONFLICT = re.compile(
 )
 
 
+#: Trailer lines git may hoist out of the conflict region, followed by the
+#: block's `---` closer. Captured so the ACTUAL hoisted text is reattached to
+#: block_a rather than a hardcoded guess (#65).
+HOISTED_TRAILER = re.compile(
+    r"\A((?:(?:decisions_made|followups):[^\n]*\n)+)---\n",
+)
+
+#: A session block must carry exactly one of each. Used by the shape guard.
+TRAILER_KEYS = ("decisions_made:", "followups:")
+
+
 def resolve_yaml(text: str) -> str:
     """Resolve YAML conflicts in MEMORY/full_history_ai.md.
 
-    The shared trailer (`decisions_made`, `followups`, `---`) sits after the
-    conflict markers and belongs to block_b. We restore it onto block_a and
-    re-open block_b with `---` so each session entry remains a self-contained
-    YAML frontmatter block.
+    Git hoists the two blocks' **common suffix** out of the conflict region, so
+    whatever trailer lines both sides happened to share sit after the markers
+    and belong to block_b. Block_a needs a copy of exactly those lines, plus its
+    own `---` closer.
+
+    The hoist is line-by-line, which is the subtlety this function got wrong
+    until #65. The trailer was hardcoded as `decisions_made: []` +
+    `followups: []`, which is right only when BOTH sessions recorded nothing --
+    the one case where the whole trailer is common. When a session recorded a
+    decision, only `followups: []` is common; `decisions_made:` differs and
+    stays *inside* the region, still attached to block_a. Appending a hardcoded
+    pair on top of it produced a duplicate key::
+
+        session: A
+        decisions_made: [D-015]      <- what the session recorded
+        decisions_made: []           <- fabricated here
+        followups: []
+
+    and `yaml.safe_load` keeps the LAST duplicate, so the recorded decision
+    silently vanished while the tool printed `resolved:` and exited 0. Measured
+    across four real `git rebase` conflicts, three were malformed; the sound one
+    was the both-empty control. Of the ten session entries written the night
+    this was found, seven had a non-empty trailer -- the tool failed precisely
+    on the entries that were worth writing down.
+
+    Reattaching the *actual* hoisted lines is the whole fix: in the both-empty
+    case they are `decisions_made: []` + `followups: []` and the output is
+    byte-identical to before.
     """
 
     def repl(m: re.Match[str]) -> str:
         a = m.group(1)
         b = m.group(2)
-        return f"{a}\ndecisions_made: []\nfollowups: []\n---\n\n---\n{b}\n"
+        hoisted = HOISTED_TRAILER.match(m.string[m.end() :])
+        if hoisted is None:
+            # Nothing was hoisted: the two trailers differed entirely, so each
+            # block already carries its own and only the separators are needed.
+            return f"{a}\n---\n\n---\n{b}\n"
+        return f"{a}\n{hoisted.group(1)}---\n\n---\n{b}\n"
 
     return CONFLICT.sub(repl, text)
+
+
+def check_block_shape(text: str, path: Path) -> None:
+    """Raise unless every session block carries exactly one of each trailer key.
+
+    `_process` already refuses to write a file with conflict markers left in it.
+    A file that *looks* well-formed but carries a duplicated `decisions_made:`
+    is the same class of failure -- worse, actually, because it is invisible --
+    so it gets the same treatment (#65).
+
+    This guard, not the resolution logic, is what would have caught the original
+    defect: the resolver's output parsed fine, read plausibly, and lost data.
+    """
+    for block in text.split("\n---\n"):
+        if "session:" not in block:
+            continue
+        for key in TRAILER_KEYS:
+            n = block.count(f"\n{key}") + (1 if block.startswith(key) else 0)
+            if n != 1:
+                first = next(
+                    (ln for ln in block.splitlines() if ln.startswith("session:")),
+                    "<unknown>",
+                )
+                raise RuntimeError(
+                    f"{path}: block '{first}' has {n} `{key}` lines after resolution "
+                    f"(expected exactly 1). Refusing to write -- a duplicated key is "
+                    f"silently resolved by YAML in favour of the LAST one, which would "
+                    f"discard what the session recorded. Inspect manually."
+                )
 
 
 def resolve_md(text: str) -> str:
@@ -107,6 +176,8 @@ def _process(path: Path, resolver, dry_run: bool) -> bool:
             f"Conflict markers remain in {path} after resolution; shape did "
             "not match the expected append-only pattern. Inspect manually."
         )
+    if resolver is resolve_yaml:
+        check_block_shape(resolved, path)
     if dry_run:
         print(f"would resolve: {path}")
     else:
