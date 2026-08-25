@@ -1508,3 +1508,25 @@ context_for_next_session:
 decisions_made: []
 followups: [nextjs#107, aop#127]
 ---
+
+---
+session: 2026-08-25T09:17Z
+issue: null   # correction to the 07:04Z roll-up above; append-only, so amended by addition
+focus: correction_the_night_run_closed_13_issues_not_10_the_roll_up_was_written_at_the_10_issue_mark
+phase: night_session_phase_d_correction
+delta:
+  prs_merged: 12          # unchanged
+  prs_opened: 13          # was 10 at the time of the roll-up; vsas#132, csl#168 and ops#67 came after
+  issues_filed_and_worked: 13
+  issues_filed_not_worked: 4   # nextjs#107, aop#127 (decision-revisit), ops#66, plus aop#127 is JT-gated
+  decisions_recorded: 6   # lco D-015, prs D-010, ems D-010, mcp D-010, aiapp D-012, and NO decision in the last three
+context_for_next_session:
+  - THE_ROLL_UP_ABOVE_SAYS_TEN_ISSUES_AND_STOPPED_AT_TEN_WITH_250_MINUTES_LEFT_ON_PURPOSE_THAT_REASONING_WAS_WRONG_and_i_corrected_it_mid_run_the_argument_was_that_an_eleventh_issue_would_need_a_SECOND_pr_in_a_repo_BUT_THREE_REPOS_STILL_HAD_NO_PR_AT_ALL_portfolio_ops_vector_search_at_scale_and_chunking_strategies_lab_COUNT_THE_REPOS_WITHOUT_A_PR_BEFORE_CONCLUDING_THE_STRUCTURE_IS_SATURATED
+  - AND_ALL_THREE_YIELDED_REAL_ISSUES_ops_65_the_memory_conflict_resolver_SILENTLY_ERASING_decisions_made_vsas_131_three_of_five_ingest_adapters_missing_the_length_guard_csl_167_two_of_five_strategies_accepting_bytes_and_producing_BYTE_OFFSETS
+  - THE_TWO_EMPTY_HUNT_RULE_NEEDS_REWRITING_AND_THIS_RUN_PROVED_IT_TWICE_vsas_had_TWO_thorough_empty_hunts_on_08_20_BOTH_NUMERICAL_and_csl_had_TWO_THIS_VERY_RUN_loader_validator_parity_and_offset_invariants_A_CONTRACT_slash_PROTOCOL_LENS_IS_A_DIFFERENT_AXIS_AND_IT_PAID_IN_BOTH_TWO_EMPTY_HUNTS_MEAN_THOSE_TWO_AXES_ARE_EXHAUSTED_NOT_THE_REPO
+  - THE_LENS_THAT_CLOSED_THE_LAST_THREE_WAS_ONE_LENS_N_IMPLEMENTATIONS_OF_ONE_PROTOCOL_DIFF_THEIR_METHOD_GUARDS_AS_A_GRID_vsas_FIVE_backends_x_ingest_csl_FIVE_strategies_x_chunk_and_in_BOTH_the_CONSTRUCTORS_WERE_UNIFORMLY_CLEAN_A_CLEAN_CONSTRUCTOR_TELLS_YOU_NOTHING_ABOUT_THE_METHOD
+  - AND_THE_csl_ONE_HAS_THE_SHARPEST_SELF_INDICTMENT_OF_THE_RUN_my_OWN_earlier_empty_hunt_in_that_repo_tested_the_exact_invariant_167_breaks_offsets_over_5_strategies_x_18_texts_zero_violations_BECAUSE_EVERY_TEXT_I_PASSED_WAS_A_str_and_80s_SHIPPED_test_offsets_are_codepoint_not_byte_offsets_HAS_THE_SAME_BLIND_SPOT_AN_INVARIANT_TEST_IS_ONLY_AS_WIDE_AS_ITS_INPUT_TYPES
+  - FINAL_STATE_ALL_13_REPOS_HAVE_EXACTLY_ONE_OPEN_PR_ALL_READY_ALL_MERGEABLE_so_next_phase_a_has_NO_sibling_conflicts_THAT_is_the_structural_stopping_point_not_the_clock_the_run_used_132_of_360_minutes
+decisions_made: []
+followups: [nextjs#107, aop#127, ops#66]
+---
