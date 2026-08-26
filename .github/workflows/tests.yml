@@ -43,3 +43,18 @@ jobs:
           test -f MEMORY/core_decisions_human.md
       - name: Verify D-001 baseline decision exists
         run: 'grep -q "id: D-001" MEMORY/core_decisions_ai.md'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pyyaml
+        run: python -m pip install --quiet pyyaml
+      # A ratchet, not a gate (#66, D-010): fails only if this repo's count of
+      # unparseable session blocks grows past its committed baseline. It does
+      # not demand zero -- MEMORY/ is append-only (handoff section 10) and
+      # retro-fixing the existing 74 across the portfolio is JT's call.
+      #
+      # Only this repo's MEMORY/ is checked here, because it is the only one a
+      # portfolio-ops CI checkout can see. The cross-repo invocation belongs to
+      # Phase A, beside audit_phase_a.py; scripts/README.md documents it.
+      - name: MEMORY YAML ratchet
+        run: python scripts/check_memory_yaml.py --file MEMORY/full_history_ai.md --repo portfolio-ops

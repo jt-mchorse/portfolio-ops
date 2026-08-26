@@ -1,0 +1,18 @@
+{
+  "_comment": "Unparseable session blocks per repo, frozen by #66. This is a RATCHET: check_memory_yaml.py fails when a count grows, never demanding zero, so the retro-fix decision (#66) stays JT's. Regenerate with --write-baseline only as part of a deliberate retro-fix.",
+  "unparseable_by_repo": {
+    "agent-orchestration-platform": 5,
+    "ai-app-integration-tests": 5,
+    "chunking-strategies-lab": 8,
+    "embedding-model-shootout": 4,
+    "llm-cost-optimizer": 5,
+    "llm-eval-harness": 10,
+    "mcp-server-cookbook": 5,
+    "nextjs-streaming-ai-patterns": 8,
+    "portfolio-ops": 6,
+    "prompt-regression-suite": 7,
+    "python-async-llm-pipelines": 2,
+    "rag-production-kit": 6,
+    "vector-search-at-scale": 3
+  }
+}
