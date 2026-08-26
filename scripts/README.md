@@ -7,10 +7,10 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 
 | Script | Purpose | Spec |
 |---|---|---|
-| `audit_phase_a.py` | Six silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41 |
+| `audit_phase_a.py` | Seven silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
-| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. | #11, #23, #25 |
+| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. | #11, #23, #25, #65 |
 
 ## Local-runner setup
 
