@@ -21,6 +21,7 @@ useless on exactly the files that need it.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -34,7 +35,26 @@ BASELINE = REPO_ROOT / "scripts" / "memory_yaml_baseline.json"
 
 pytest.importorskip("yaml")
 
-from scripts.check_memory_yaml import count_unparseable, load_baseline  # noqa: E402
+
+def _load_module():
+    """Import scripts/check_memory_yaml.py by path.
+
+    Same shape `test_audit_phase_a.py` uses, and for the same reason: `scripts/`
+    is not a package, so `from scripts.check_memory_yaml import ...` resolves
+    only when the repo root happens to be on `sys.path`. It did locally and did
+    not on CI (`ModuleNotFoundError: No module named 'scripts'`), which is
+    exactly the sort of import that works on one machine and not another.
+    """
+    spec = importlib.util.spec_from_file_location("check_memory_yaml", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_MODULE = _load_module()
+count_unparseable = _MODULE.count_unparseable
+load_baseline = _MODULE.load_baseline
 
 
 def _block(followups: str, session: str = "2026-01-01T00:00Z") -> str:
