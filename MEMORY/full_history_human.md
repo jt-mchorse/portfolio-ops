@@ -1050,3 +1050,70 @@ green. Check whether a file you added for convenience is actually load-bearing
 before committing it.
 
 **Tests.** 27 new; suite 197 → 224 green.
+
+## 2026-08-26 — night run: 13 merges, 13 issues, all thirteen repos
+
+**Phase A.** All thirteen ready PRs from the previous run merged clean — one per
+repo, no MEMORY conflicts, for the fifth consecutive run. The audit ran seven
+fingerprints over thirteen repos: twelve clean, one known JT-blocked finding
+(`trending-daily`, unchanged since 2026-08-12).
+
+**The dominant lens: count the issues per *method* of a protocol and work the one
+with zero.** It paid twice. `vector-search-at-scale`'s `Backend` has three
+methods — `ingest` got #131 last run, `query` has three issues, and `close` had
+none. `llm-cost-optimizer`'s `Storage` has five — `put` had three, `find_nearest`
+two, and `invalidate_by_tag` / `purge_expired` / `__len__` had none. A protocol is
+exhausted when every method has been enumerated, not when the interesting ones
+have. And the smallest method is the one nobody has read: `close` is two to four
+lines per adapter, and it answered five different ways, two of them by returning
+an empty result list the harness scores as `recall = 0.0` and publishes.
+
+**Second method, sixth run running: sweep the portfolio for a pattern just
+shipped.** `rag-production-kit#188` was a dict comprehension transforming only
+`v`; grepping all twelve repos for that shape landed on two with the same
+`{str(k)}` / `{int(k)}` round trip. One grep, two issues. The sharper question
+than the grep is *is the read transform the inverse of the write transform* —
+`int()` accepts leading zeros, whitespace, `+`, `_` separators and non-ASCII
+decimal digits. `int("٥")` is 5.
+
+**Four new transferable shapes.** An upsert's `DO UPDATE SET` is a subset of its
+INSERT column list until someone checks — and the test that *parses the SQL* is
+worth more than the three-column fix. A sanitizer can be less robust than the call
+it wraps. An index is not the truth: ask what removes a record without telling it,
+and whether keys get reused. And a per-item normalizer that runs before a join
+eats the seams.
+
+**Three pre-existing tests blocked me, and all three were wrong the same way.**
+One asserted the opposite of its own title; one proved "clears index" by querying
+after close, which was the defect; one was named after the mechanism, and the
+mechanism was the bug. A test name with "and" in it is two claims. A test named
+after *how* instead of *what* keeps passing when the how is wrong. And
+`prompt-regression-suite#138` is the strongest form: a lock that was correct only
+because the thing it locked was fabricated — making the documentation true broke
+it, and the repair was to repoint the anchor, not bend the doc back.
+
+**CI caught three things my local runs did not, and all three are process
+lessons.** A new D-NNN is a code change to two documents, so run the suite *after*
+the MEMORY commit. I measured `json.dumps`'s depth behaviour on one Python version
+and generalised it. And a path alias is configured per tool — `tsconfig` mapped
+`@/`, `vitest.config.ts` did not. That last one carried the worst verification
+mistake of the run: I read `vitest run | tail -4` as a pass, and it showed the
+test count without the `Test Files 3 failed` line above it. A suite that fails to
+*load* contributes zero tests, so the count shrinks silently instead of going red.
+
+**Two repair patterns worth keeping.** When a guarantee depends on a runtime
+property, pin your own bound — and test it by *constraining* the host
+(`setrecursionlimit(200)`) rather than asserting what this host survives. And when
+a fix has a JT-gated half, ship a ratchet, not a gate: `portfolio-ops#66` freezes
+the count of unparseable MEMORY blocks at today's baseline, so the convention is
+enforceable tomorrow without forcing a decision about yesterday.
+
+**Four filed-but-unworked followups from prior runs were all real,** three of them
+`priority:low` or `med`. Check the followup list before hunting — a previous run
+already paid the measurement cost, and a `priority:low` label is not a severity
+judgement.
+
+**Stopped at thirteen on structure, not the clock** — 116 of 360 minutes. Every
+one of the thirteen repos now has exactly one ready PR, verified per repo, so the
+next Phase A has no sibling MEMORY conflicts. A fourteenth issue would have meant
+a second ready PR somewhere.
