@@ -1000,3 +1000,53 @@ The tool fixed the conflict its own PR created.
 **Not repaired here.** The two fused historical blocks are also among the 74
 unparseable ones from #66. MEMORY is append-only and repairing history is JT's
 call, so they are noted rather than rewritten.
+
+## 2026-08-26 — a ratchet, so the gated half stays open (#66, D-010)
+
+**What got done.** `followups: [#107]` is not valid YAML — `#` begins a comment
+when it follows whitespace or opens a token — so the *whole* session block fails
+to load. D-010 adopts the quoted form for new blocks, the `portfolio-memory`
+skill's schema shows it, and `scripts/check_memory_yaml.py` ratchets the count.
+
+**The issue had two halves and only one was mine.** It said so itself: whether a
+mechanical quote-insertion counts as rewriting append-only history "belongs to JT
+rather than a session". So I did the going-forward half and built the tool so the
+gated half stays open. Worth reading an issue for *which of its acceptance
+criteria are yours*.
+
+**The ratchet is the whole design.** A gate demanding zero would have forced the
+retro-fix decision by making CI red until someone made it. A baseline freezes the
+damage at today's count, so the convention is enforceable tomorrow without
+deciding anything about yesterday. When a fix has a gated half, ship a ratchet,
+not a gate. That is also `#65`'s follow-up lesson reused one run later, on the
+same files: a guard that refuses to operate on already-damaged files is useless
+on exactly the files that need it.
+
+**I corrected the issue's own analysis, and posted it there.** `#66` argued for
+Option 1 partly because Option 2 "loses the cross-repo form (`leh#212`)". That
+form was never broken — YAML starts a comment at `#` only after whitespace or at
+token start, so `leh#212` is a plain scalar. Measure the premise of an issue
+before implementing its recommendation, even your own.
+
+**The recommendation survived with a different reason.** Quote *every* item, not
+only the bare-`#` ones, because "quote a followup only when it starts with `#`"
+is correct and unmemorable. A convention written into a skill has to be one a
+tired session can apply without thinking; a superset rule with no exceptions
+beats a precise one with an exception.
+
+**A test worth reusing.** `test_the_baseline_is_not_vacuous` asserts the
+allowance file is neither all-zeros (which would make it a gate) nor huge (which
+would make it useless). A committed allowance file has two opposite failure
+modes, and both need an assertion — zeroing the baseline turns it red.
+
+**Scope limit, stated.** Only portfolio-ops' own `MEMORY/` is checked in CI,
+because it is the only one a portfolio-ops checkout can see. The cross-repo
+invocation is a Phase A operator command, documented beside `audit_phase_a.py`.
+Enforcing it in all thirteen repos would be twelve more PRs and is not this issue.
+
+**Hygiene.** I created `scripts/__init__.py` for an import, then found it
+unnecessary (namespace packages) and deleted it before staging. 224 tests still
+green. Check whether a file you added for convenience is actually load-bearing
+before committing it.
+
+**Tests.** 27 new; suite 197 → 224 green.

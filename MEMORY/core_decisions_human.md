@@ -120,3 +120,37 @@ Strategic decisions for this repo, with reasoning. Append-only — superseded de
 **Related issues:** —
 
 *Note: JT referred to the fifth repo as "next-js-streaming-ai-patterns"; the canonical repo name is `nextjs-streaming-ai-patterns`.*
+
+## D-010 — `followups` items are quoted strings (2026-08-26)
+
+**Decision.** In `MEMORY/full_history_ai.md`, every `followups` item is a quoted
+string: `followups: ["#107"]`, `followups: ["leh#212", "csl#165"]`. This applies
+to **new blocks only**. It deliberately does *not* decide whether the 74 existing
+unparseable blocks are retro-fixed — that remains JT's call under handoff §10
+(append-only), which is the question `#66` was filed to ask.
+
+**Why.** `#` begins a comment in YAML when it follows whitespace or opens a
+token, so an unquoted `followups: [#107]` is `followups: [` plus a comment — an
+unterminated flow sequence that makes the **whole session block** fail
+`yaml.safe_load`, not just that field. Measured across the portfolio on
+2026-08-26: 74 of 953 blocks are already unloadable, and 72 of those are fixed by
+quoting the followups items alone. Handoff §3 calls this file "AI-optimized …
+for fast machine parsing", so an unloadable 8% defeats the field's purpose the
+first time anything parses it.
+
+**Quote every item, not only the bare-`#` ones.** The precise defect is narrower
+than "`#` breaks YAML" — `[leh#212]` parses fine, because there the `#` follows
+`h`, and `#66`'s option analysis was wrong to claim the cross-repo spelling was
+at risk. But the narrow rule ("quote a followup only when it starts with `#`") is
+correct and unmemorable, while "quote every item" is a superset with no
+exceptions. A convention written down in a skill has to be one a tired session
+can apply without thinking.
+
+**Alternatives considered.** (1) Drop the `#` — `followups: [107]` — loses the
+form the corpus actually uses and reads worse. (2) Leave it and delete the
+"machine parsing" claim from the handoff — honest and cheapest, but gives up the
+field's reason for existing. (3) Quote only the items that need it — see above.
+
+**Reversibility.** Cheap. It is a writing convention plus a ratchet;
+`scripts/check_memory_yaml.py --write-baseline` re-freezes the counts if the
+retro-fix decision goes the other way.

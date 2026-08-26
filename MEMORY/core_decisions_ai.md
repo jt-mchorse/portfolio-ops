@@ -86,3 +86,14 @@
   related_issues: []
   superseded_by: null
   # note: jt wrote "next-js-streaming-ai-patterns"; canonical repo is nextjs-streaming-ai-patterns
+
+- id: D-010
+  date: 2026-08-26
+  decision: followups_items_are_quoted_strings_in_full_history_ai_yaml_blocks
+  rationale: hash_begins_a_yaml_comment_when_it_follows_whitespace_or_opens_a_token_so_an_unquoted_followups_bracket_hash_107_is_an_unterminated_flow_sequence_that_makes_the_WHOLE_session_block_fail_yaml_safe_load_74_of_953_blocks_across_the_portfolio_are_already_in_that_state_and_handoff_section_3_calls_this_file_ai_optimized_for_fast_machine_parsing_QUOTE_EVERY_ITEM_not_only_the_bare_hash_ones_because_the_narrow_rule_quote_only_when_it_starts_with_hash_is_correct_and_unmemorable_while_quote_everything_is_a_superset_with_no_exceptions
+  scope: new_blocks_only_the_retro_fix_of_the_existing_74_is_explicitly_NOT_decided_here_and_remains_jt_gated_per_handoff_section_10_append_only
+  measured: "953 followups lines: 866 empty and parsing, 74 bare-#NNN and failing; 72 of the 74 unparseable blocks are fixed by quoting the followups items alone; [leh#212] and [csl#165, aiapp#102] ALREADY parse because # follows a letter there"
+  alternatives_rejected: [drop_the_hash_followups_bracket_107, leave_it_and_delete_the_machine_parsing_claim_from_the_handoff, quote_only_items_beginning_with_hash]
+  reversibility: cheap
+  related_issues: [#66, #65]
+  superseded_by: null
