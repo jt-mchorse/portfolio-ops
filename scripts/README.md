@@ -10,6 +10,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `audit_phase_a.py` | Seven silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
+| `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010 |
 | `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. | #11, #23, #25, #65 |
 
 ## Local-runner setup
@@ -25,7 +26,22 @@ pip install -r scripts/requirements.txt
 
 # Smoke-test the audit on one repo.
 python3 scripts/audit_phase_a.py --repo llm-eval-harness
+
+# MEMORY YAML ratchet across the whole portfolio. Run from the checkout root
+# that holds both `portfolio-ops/` and `repos/` -- the layout Phase A assumes.
+# portfolio-ops' own CI runs the single-repo form; only an operator with every
+# repo checked out can run the cross-repo one.
+cd ~/projects/portfolio
+python3 portfolio-ops/scripts/check_memory_yaml.py --root .
+# -> 0 within baseline, 1 a repo regressed, 2 usage/IO error
 ```
+
+`check_memory_yaml.py` is a **ratchet**: it compares each repo against
+`scripts/memory_yaml_baseline.json` and fails only when a count grows. It does
+not demand zero. `MEMORY/` is append-only (handoff §10), and whether the 74
+existing unparseable blocks are retro-fixed is a JT decision (#66) that the
+ratchet deliberately leaves open. `--write-baseline` re-freezes the counts, and
+should only be used as part of a deliberate retro-fix.
 
 Without pyyaml installed, `audit_phase_a.py` still runs but skips the
 two yaml-dependent checks with a stderr note:

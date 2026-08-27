@@ -46,9 +46,32 @@ context_for_next_session:
   - <bullet>
   - <bullet>
 decisions_made: [D-NNN, ...]               # IDs from core_decisions, empty list if none
-followups: [#<issue>, ...]                  # new issues filed this session
+followups: ["#<issue>", ...]                # new issues filed this session; QUOTE every item
 ---
 ```
+
+**Quote every `followups` item** (D-010, #66). `#` begins a comment in YAML when
+it follows whitespace or opens a token, so an unquoted `followups: [#107]` is
+`followups: [` plus a comment — an unterminated flow sequence that makes the
+**whole session block** fail `yaml.safe_load`, not just that field. 74 of 953
+blocks across the portfolio are already in that state.
+
+The precise rule is narrower than "`#` breaks YAML": `[leh#212]` parses fine,
+because there the `#` follows `h`. But "quote every item" is one rule with no
+exceptions and a superset of the narrow one, so it cannot be applied wrongly —
+which is the whole point of a convention written down in a skill.
+
+```yaml
+followups: []                          # none
+followups: ["#107"]                    # one, this repo
+followups: ["leh#212", "csl#165"]      # cross-repo
+followups: ["#107", "leh#212"]         # mixed
+```
+
+`scripts/check_memory_yaml.py` ratchets this: it fails when a repo's count of
+unparseable blocks *grows* past its committed baseline. It does not demand zero —
+`MEMORY/` is append-only (handoff §10) and retro-fixing the existing 74 is JT's
+call, deliberately left open.
 
 2. **Derive the human version.** Append a section to `full_history_human.md`:
 
