@@ -1136,3 +1136,191 @@ def test_audit_repo_includes_unpinned_lint_config(audit_module):
     with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
         findings = audit_module.audit_repo("anyrepo", token=None)
     assert any(f["kind"] == "unpinned-lint-config" for f in findings)
+
+
+# --- #69: the default branch is red -----------------------------------------
+#
+# The 2026-07-31 ruff release turned six repos' `main` red with zero repo-side
+# changes, and the next Phase A reported every repo clean. `check_paired_failure`
+# already fetched exactly this data and only flagged a SHA that produced *both*
+# a success and a failure, so a uniformly-red branch was not a finding.
+
+
+def _run(wf_id: int, *, conclusion, status="completed", name=None) -> dict:
+    return {
+        "workflow_id": wf_id,
+        "name": name or f"wf{wf_id}",
+        "path": f".github/workflows/wf{wf_id}.yml",
+        "status": status,
+        "conclusion": conclusion,
+        "head_sha": f"{wf_id}abcdef0123456789",
+        "html_url": f"https://github.com/x/y/actions/runs/{wf_id}",
+    }
+
+
+def _runs(*runs: dict) -> dict:
+    return {"workflow_runs": list(runs)}
+
+
+def test_main_branch_red_flags_a_failing_default_branch(audit_module):
+    responses = {"actions/runs": _runs(_run(1, conclusion="failure"))}
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_main_branch_red("anyrepo", token=None)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["kind"] == "main-branch-red"
+    assert f["repo"] == "anyrepo"
+    assert f["workflow_name"] == "wf1"
+    assert f["conclusion"] == "failure"
+
+
+def test_main_branch_red_is_silent_on_a_green_branch(audit_module):
+    """The other half. A fingerprint that never fires is indistinguishable from
+    one that is broken, so both directions are asserted."""
+    responses = {"actions/runs": _runs(_run(1, conclusion="success"))}
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_main_branch_red("anyrepo", token=None) == []
+
+
+def test_main_branch_red_uses_only_the_newest_completed_run_per_workflow(audit_module):
+    """A branch that broke and was fixed is not red.
+
+    Runs come back newest-first; a failure *behind* a success must not fire, or
+    the fingerprint reports history rather than state and an operator learns to
+    skim past it.
+    """
+    responses = {
+        "actions/runs": _runs(
+            _run(1, conclusion="success"),
+            _run(1, conclusion="failure"),
+        )
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_main_branch_red("anyrepo", token=None) == []
+
+
+def test_main_branch_red_reports_only_the_red_workflows(audit_module):
+    responses = {
+        "actions/runs": _runs(
+            _run(1, conclusion="success"),
+            _run(2, conclusion="failure"),
+            _run(3, conclusion="timed_out"),
+        )
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_main_branch_red("anyrepo", token=None)
+    assert sorted(f["workflow_id"] for f in findings) == [2, 3]
+
+
+def test_main_branch_red_skips_in_flight_runs(audit_module):
+    """Phase A runs while pushes may be in flight; a running job is not red."""
+    responses = {
+        "actions/runs": _runs(
+            _run(1, conclusion=None, status="in_progress"),
+            _run(1, conclusion="success"),
+        )
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_main_branch_red("anyrepo", token=None) == []
+
+
+def test_main_branch_red_looks_past_an_in_flight_run_to_the_last_completed_one(
+    audit_module,
+):
+    """An in-flight rerun must not *hide* a red branch.
+
+    This is the direction that makes the `status == "completed"` filter
+    load-bearing, and my first version of the test above missed it: an
+    `in_progress` run always carries `conclusion: None`, which is not in
+    `RED_CONCLUSIONS`, so a test that only asserts "no finding" passes with the
+    filter removed. Dropping the filter causes a **missed detection** — a
+    branch that is red with a rerun queued reads as clean — which is exactly
+    the failure mode this whole fingerprint exists to end.
+    """
+    responses = {
+        "actions/runs": _runs(
+            _run(1, conclusion=None, status="in_progress"),
+            _run(1, conclusion="failure"),
+        )
+    }
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_main_branch_red("anyrepo", token=None)
+    assert len(findings) == 1, "a red branch with a rerun in flight is still red"
+    assert findings[0]["conclusion"] == "failure"
+
+
+def test_main_branch_red_ignores_a_cancelled_run(audit_module):
+    """A cancelled run is a human or a concurrency group, not a broken branch."""
+    responses = {"actions/runs": _runs(_run(1, conclusion="cancelled"))}
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_main_branch_red("anyrepo", token=None) == []
+
+
+def test_main_branch_red_says_nothing_about_a_never_run_workflow(audit_module):
+    """Disjoint from `phantom-ci` / `stuck-registration`, asserted not assumed."""
+    responses = {"actions/runs": _runs()}
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_main_branch_red("anyrepo", token=None) == []
+
+
+def test_main_branch_red_is_registered_in_audit_repo(audit_module):
+    """A fingerprint that exists but is never called is the exact shape of a
+    silent-rot bug in a silent-rot detector."""
+    import inspect
+
+    assert "check_main_branch_red" in inspect.getsource(audit_module.audit_repo)
+
+
+def test_main_branch_red_is_scoped_to_push_events(audit_module):
+    """A failing *scheduled* workflow belongs to `stale-schedule`, not here.
+
+    Verified against production while writing this: `portfolio-ops`'s three red
+    workflows are all `schedule` events, so the two fingerprints are disjoint on
+    the one repo in the portfolio that currently has a standing finding.
+    """
+    import inspect
+
+    src = inspect.getsource(audit_module.check_main_branch_red)
+    assert "event=push" in src, "must not widen to schedule runs without a decision"
+
+
+def test_main_branch_red_formats_a_readable_line(audit_module):
+    line = audit_module.format_finding(
+        {
+            "kind": "main-branch-red",
+            "repo": "llm-eval-harness",
+            "branch": "main",
+            "workflow_id": 7,
+            "workflow_name": "CI",
+            "workflow_path": ".github/workflows/ci.yml",
+            "conclusion": "failure",
+            "sha": "deadbeef",
+            "run_url": "https://example.test/run/7",
+        }
+    )
+    for expected in (
+        "main-branch-red",
+        "llm-eval-harness",
+        "CI",
+        "failure",
+        "deadbeef",
+    ):
+        assert expected in line
+
+
+def test_paired_failure_and_phantom_ci_use_the_default_branch(audit_module):
+    """Both hardcoded `branch=main` while `_default_branch()` existed (#69).
+
+    Latent — every repo uses `main` today — but a repo with a different default
+    would have made those two query a branch that does not exist and return zero
+    findings, the same "passes because it looked at nothing" failure this issue
+    is about.
+    """
+    import inspect
+
+    for fn in (audit_module.check_paired_failure, audit_module.check_phantom_ci):
+        src = inspect.getsource(fn)
+        assert "_default_branch(" in src, (
+            f"{fn.__name__} does not resolve the default branch"
+        )
+        assert "branch=main" not in src, f"{fn.__name__} still hardcodes branch=main"
