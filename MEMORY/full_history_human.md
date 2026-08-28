@@ -1117,3 +1117,43 @@ judgement.
 one of the thirteen repos now has exactly one ready PR, verified per repo, so the
 next Phase A has no sibling MEMORY conflicts. A fourteenth issue would have meant
 a second ready PR somewhere.
+
+## 2026-08-28 - issue #69: the audit could not see a red default branch
+
+The parent issue asks for a dependency-pinning policy across six repos, and a
+previous session deliberately escalated that to JT rather than deciding it. I left
+that alone. But the same issue names a second, separable thing that needs no policy
+at all: the audit has no fingerprint for "the default branch is broken right now",
+and that is why the July break - six repos turned red by a tool release with no
+commits - was invisible to the next session's Phase A.
+
+The near miss is the interesting part. One existing check already fetches exactly
+the right data and then asks a narrower question of it: it flags a commit that
+produced both a success and a failure, which catches a duplicated or flaky workflow
+but is blind to a branch that is uniformly red. The data was there; nobody asked.
+
+What pointed me at it was partitioning the existing detectors by what kind of thing
+they look at. Four key off shapes in run history, three are static properties of
+config files, and the cell for "current state of the branch" was empty.
+
+The anti-vacuous pass then did the best work of the session. Three of my four revert
+arms went red as expected; the fourth, removing the filter that skips in-flight
+runs, left everything passing. An in-progress run always has a null conclusion,
+which was never going to be flagged as red anyway, so a test asserting "no finding"
+passed with or without the filter. The filter's actual job runs the other way: it
+looks past an in-flight run to the last completed one, so a branch that is red with
+a rerun queued still gets reported. Removing it causes a missed detection - the
+exact failure this fingerprint exists to end. The generalisation worth keeping is
+that when a guard skips a value, the test that matters is not what the skip
+suppresses but what it lets you reach.
+
+I validated the check against real history rather than only fixtures, and against
+the one repo that could plausibly double-report: its failing workflows are all
+scheduled ones, so the new push-scoped check stays quiet and the existing
+stale-schedule finding keeps them.
+
+One process near-miss. Running the formatter reformatted eleven files when I had
+edited three, because my local linter is older than CI's - the parent issue's
+problem in reverse. Recording the formatter's file list on main first, reverting
+everything outside my intent, and then asserting the final list matches that
+baseline exactly is what kept the diff readable.
