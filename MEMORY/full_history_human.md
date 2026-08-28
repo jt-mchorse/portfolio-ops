@@ -1157,3 +1157,46 @@ edited three, because my local linter is older than CI's - the parent issue's
 problem in reverse. Recording the formatter's file list on main first, reverting
 everything outside my intent, and then asserting the final list matches that
 baseline exactly is what kept the diff readable.
+
+## 2026-08-28 - night run: ten issues, and one lens behind half of them
+
+Phase A merged all nine PRs the previous run left - one per repo, no memory
+conflicts, the sixth consecutive time that discipline has held. The audit reported
+twelve of thirteen repos clean, with the one known scheduled-workflow finding that
+has been blocked on a missing API key since mid-August.
+
+One lens accounted for half the night's work: a fix's own enumeration is a coverage
+claim, and the real population is usually bigger. An environment-variable helper
+opened by listing "four env-reading sites" - there were six, and the two it missed
+carried the exact guard it was written to replace. A lock in another repo hand-listed
+its three modules, so a fourth copy of the defect it guards against passed all 631
+tests. An issue asked for its table to be run against every server, and doing so
+found a second server with its own bug. A package surveyed its own frozen dataclasses
+and found two, which was true within that package and had never been run elsewhere.
+And the silent-rot audit had seven fingerprints and no cell at all for "is the
+default branch broken right now" - the gap the July tooling break walked through.
+
+The move is cheap: when a comment contains a list or a count, go count the real
+population. Its twin is that a hand-listed guard can never see a new member, which
+is the mirror image of the vacuous-test problem I have been solving all month. I
+converted four such locks to discovery this run.
+
+The anti-vacuous pass earned its keep three times and twice it changed the code
+rather than the tests. Once it deleted a guard I had just written - a boolean check
+on a value only ever compared for equality against 404, which no boolean can equal.
+Once an arm came back green, and fixing the test revealed that the filter's real job
+ran the opposite way from what I had assumed: it looks past an in-flight run to the
+last completed one, so removing it causes a missed detection rather than a false one.
+
+Two process notes worth keeping. I nearly shipped the inverse of a bug inside its own
+fix, quietly turning a value that used to fail a boot into a silent default; my own
+new test caught it, and that shape is easy to miss because it looks like part of the
+fix. And I wrote a source-scanning rule in the negative form twice, and both times it
+flagged code that was correct - stating it positively, as what must be present, and
+naming the exceptions with a test that each still exists, is the version that works.
+
+I stopped at ten with four hours left on the clock, and the reason is structural
+rather than fatigue. Ten repos now have exactly one ready, green PR each, which is
+what makes the next session's merge pass conflict-free. An eleventh issue would mean
+a second PR in a repo that already has one. The three repos without a PR were each
+actually hunted tonight and found clean on every axis I applied, rather than assumed.
