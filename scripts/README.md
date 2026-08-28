@@ -7,7 +7,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 
 | Script | Purpose | Spec |
 |---|---|---|
-| `audit_phase_a.py` | Seven silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63 |
+| `audit_phase_a.py` | Eight silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63, #69 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
 | `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010 |
