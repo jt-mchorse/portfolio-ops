@@ -1200,3 +1200,25 @@ rather than fatigue. Ten repos now have exactly one ready, green PR each, which 
 what makes the next session's merge pass conflict-free. An eleventh issue would mean
 a second PR in a repo that already has one. The three repos without a PR were each
 actually hunted tonight and found clean on every axis I applied, rather than assumed.
+
+## 2026-08-31 — Night session roll-up: 10 PRs merged, 9 issues closed across 9 repos
+**Duration:** ~87 min of a 360-min cap · **Phase A + multi-issue loop**
+
+**Phase A.** All ten ready PRs from the 2026-08-28 run merged clean — sixth consecutive run with zero sibling `MEMORY/` conflicts, which is what the one-ready-PR-per-repo discipline buys. The eight-fingerprint audit was clean on twelve of thirteen repos; the one finding is the known JT-blocked `trending-daily` stale schedule, unchanged since 2026-08-12, so no new issue.
+
+**The lens that dominated the run, and it paid three times: a *true* reason for an over-broad exclusion is harder to spot than a false one, because re-reading confirms it.**
+- `aop#132`'s test exemption said `trace-server` "resolves a numeric port through `Number(...) || default`, which has no blank-but-truthy hazard because `Number("  ")` is `0`, i.e. falsy". Every word true — and it excused the whole site from the rule while `PORT=0` was unreachable and `PORT=abc` silently became the default in the same expression.
+- `aiapp#107`'s bare `!` guard correctly refused unset *and* empty string — the two cases anyone tries by hand — and let `"  "` through.
+- `lco#201`'s capture-demo test loader claimed to mirror a helper that actually inserts a *different* directory.
+
+The question to ask of an exemption is not "is the reason true" but "does the reason cover everything the exemption covers".
+
+**Second lens: a guard named after one member of a class is a survey nobody re-checks.** `csl`'s module-identity guard hardcoded `scripts.run_matrix` and matched the literal string `"scripts"`, so `notebooks/_build_notebook.py` — the identical bare-import shape, one directory over — was never covered. Both `csl` and `lco` now discover the population from `git ls-files` instead of naming one member.
+
+**Two of my own anti-vacuous checks failed, and both were the most useful moments of the run.** In `aop#132`, reverting the call site while leaving the import in place turned *nothing* red — the population rule is a file-level text heuristic satisfied by the mention alone. In `aiapp#107`, "a padded but valid tempdir is accepted" **passed against the un-fixed script**, because an untrimmed directory also produces exit 0. A test needs the bug and the fix to produce *different* observables, not merely a correct one.
+
+**Host-environment skew is not only the interpreter version — it is also which extras are installed.** `csl#174` went red in CI because my venv has the `[notebook]` extra and CI installs only `.[dev]`, so a static `import matplotlib.pyplot` one line after `pytest.importorskip("matplotlib")` type-checks locally and fails there. Reproduced by building a throwaway venv with the exact line CI runs. The portfolio sweep for that pattern came back a clean negative: `chunking-strategies-lab` is the only repo with `tests` in its mypy `files`.
+
+**Process notes.** My duration estimates were wrong by 3–5x again — I wrote 55 and 60 minutes into two memory entries and two issue comments when the measured elapsed was 18 and 11; all four corrected. `git checkout <path>` ate an edit twice after a `git stash pop`, because the index is `HEAD` at that point. And I skipped the Phase-A plan comment on `lco#201`, recorded on the issue rather than back-dated.
+
+**Open for JT:** `ems#111`, `nextjs#97`, `nextjs#82`, `vsas#71`, `vsas#78`, `pyasync#90`, `aop#127`, `aop#119`, `lco#199`, `lco#135`, `lco#97`, `csl#144`, `leh#212`, `leh#220`, `leh#177`, `aiapp#81`, and `ops#17`/`ops#62` — all decision-gated, none touched.
