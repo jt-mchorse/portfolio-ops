@@ -135,8 +135,9 @@ def _gh_get(path: str, token: str | None) -> Any:
 
 def check_paired_failure(repo: str, token: str | None) -> list[dict]:
     """Flag any SHA on main that produced both success and failure runs."""
+    branch = _default_branch(repo, token)
     data = _gh_get(
-        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch=main&per_page=10",
+        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch={branch}&per_page=10",
         token,
     )
     runs = data.get("workflow_runs", [])
@@ -249,8 +250,9 @@ def check_phantom_ci(
         for wf in workflows_data.get("workflows", [])
         if wf.get("state") == "active"
     }
+    branch = _default_branch(repo, token)
     data = _gh_get(
-        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch=main&per_page=20",
+        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=push&branch={branch}&per_page=20",
         token,
     )
     runs = data.get("workflow_runs", [])
@@ -488,6 +490,92 @@ def _pyproject_paths(repo: str, token: str | None) -> list[str]:
     ]
 
 
+#: Run conclusions that mean "the default branch is broken right now".
+#: `cancelled` is excluded — a cancelled run is a human or a concurrency group
+#: superseding it, not a red branch. `action_required` and `stale` are likewise
+#: not build failures.
+RED_CONCLUSIONS = frozenset({"failure", "timed_out"})
+
+
+def check_main_branch_red(repo: str, token: str | None) -> list[dict]:
+    """Flag workflows whose newest *completed* run on the default branch failed.
+
+    Closes the gap the 2026-07-31 ruff break went through: six repos' default
+    branches went red with zero repo-side changes, and the next Phase A
+    reported every repo clean.
+
+    None of the seven fingerprints before this could see it, and not by
+    oversight — they answer different questions. `paired-failure`,
+    `stuck-registration`, `stale-schedule` and `phantom-ci` key off *shapes* in
+    run history; `missing-timeout`, `missing-concurrency` and
+    `unpinned-lint-config` are static properties of workflow/config files. None
+    is "the current state of the default branch".
+
+    `check_paired_failure` is the near miss: it already fetches exactly this
+    data, then only flags a SHA that produced *both* a success and a failure. A
+    uniformly-red branch is not a paired failure. The narrower question is a
+    good one — it catches a duplicated or flaky workflow — but it was being
+    answered over a dataset that also answers this one, and nothing asked (#69).
+
+    Deliberately scoped:
+
+    - **Newest completed run per workflow**, not "any failure in the window". A
+      branch that broke and was fixed is not red, and reporting it would teach
+      an operator to skim past this fingerprint.
+    - **`in_progress` / `queued` are skipped**, not treated as red. Phase A runs
+      while pushes may be in flight.
+    - **A workflow with no completed runs produces nothing.** That is
+      `phantom-ci`'s and `stuck-registration`'s territory; one repo reported
+      twice under two kinds makes the summary harder to act on. Asserted in the
+      tests, not assumed.
+    - **`cancelled` is not red** — see `RED_CONCLUSIONS`.
+    - **`event=push` only**, matching its siblings. A failing *scheduled*
+      workflow is `stale-schedule`'s finding. Verified against production
+      rather than assumed: `portfolio-ops`'s three red workflows
+      (`trending-daily`, `trending-weekly`, `audit-cron`) are all `schedule`
+      events, so this check stays silent on the one repo that currently has a
+      standing finding, and `stale-schedule` keeps it.
+    """
+    branch = _default_branch(repo, token)
+    try:
+        data = _gh_get(
+            f"/repos/{REPO_OWNER}/{repo}/actions/runs"
+            f"?event=push&branch={branch}&per_page=50",
+            token,
+        )
+    except urllib.error.HTTPError:
+        return []
+
+    # Runs come back newest-first; keep the first *completed* one per workflow.
+    newest_completed: dict[int, dict] = {}
+    for run in data.get("workflow_runs", []):
+        wf_id = run.get("workflow_id")
+        if wf_id is None or wf_id in newest_completed:
+            continue
+        if run.get("status") != "completed":
+            continue
+        newest_completed[wf_id] = run
+
+    findings = []
+    for wf_id, run in sorted(newest_completed.items()):
+        if run.get("conclusion") not in RED_CONCLUSIONS:
+            continue
+        findings.append(
+            {
+                "kind": "main-branch-red",
+                "repo": repo,
+                "branch": branch,
+                "workflow_id": wf_id,
+                "workflow_name": run.get("name") or "(unnamed)",
+                "workflow_path": run.get("path") or "(unknown)",
+                "conclusion": run.get("conclusion"),
+                "sha": (run.get("head_sha") or "")[:8],
+                "run_url": run.get("html_url") or "",
+            }
+        )
+    return findings
+
+
 def check_unpinned_lint_config(repo: str, token: str | None) -> list[dict]:
     """Flag Python packages that use ruff without declaring its rule set.
 
@@ -563,12 +651,20 @@ def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings.extend(check_missing_timeout(repo, token))
     findings.extend(check_missing_concurrency(repo, token))
     findings.extend(check_unpinned_lint_config(repo, token))
+    findings.extend(check_main_branch_red(repo, token))
     return findings
 
 
 def format_finding(f: dict) -> str:
     kind = f["kind"]
     repo = f["repo"]
+    if kind == "main-branch-red":
+        return (
+            f"  [{kind}] {repo}: {f['branch']} is red — workflow "
+            f"{f['workflow_name']!r} ({f['workflow_path']}) last completed run "
+            f"on {f['sha']} was {f['conclusion']}"
+            + (f" — {f['run_url']}" if f["run_url"] else "")
+        )
     if kind == "paired-failure":
         run_summaries = ", ".join(f"{r['name']}={r['conclusion']}" for r in f["runs"])
         return f"  [{kind}] {repo}@{f['sha']}: {run_summaries}"

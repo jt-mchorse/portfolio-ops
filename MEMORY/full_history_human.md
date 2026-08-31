@@ -1117,3 +1117,86 @@ judgement.
 one of the thirteen repos now has exactly one ready PR, verified per repo, so the
 next Phase A has no sibling MEMORY conflicts. A fourteenth issue would have meant
 a second ready PR somewhere.
+
+## 2026-08-28 - issue #69: the audit could not see a red default branch
+
+The parent issue asks for a dependency-pinning policy across six repos, and a
+previous session deliberately escalated that to JT rather than deciding it. I left
+that alone. But the same issue names a second, separable thing that needs no policy
+at all: the audit has no fingerprint for "the default branch is broken right now",
+and that is why the July break - six repos turned red by a tool release with no
+commits - was invisible to the next session's Phase A.
+
+The near miss is the interesting part. One existing check already fetches exactly
+the right data and then asks a narrower question of it: it flags a commit that
+produced both a success and a failure, which catches a duplicated or flaky workflow
+but is blind to a branch that is uniformly red. The data was there; nobody asked.
+
+What pointed me at it was partitioning the existing detectors by what kind of thing
+they look at. Four key off shapes in run history, three are static properties of
+config files, and the cell for "current state of the branch" was empty.
+
+The anti-vacuous pass then did the best work of the session. Three of my four revert
+arms went red as expected; the fourth, removing the filter that skips in-flight
+runs, left everything passing. An in-progress run always has a null conclusion,
+which was never going to be flagged as red anyway, so a test asserting "no finding"
+passed with or without the filter. The filter's actual job runs the other way: it
+looks past an in-flight run to the last completed one, so a branch that is red with
+a rerun queued still gets reported. Removing it causes a missed detection - the
+exact failure this fingerprint exists to end. The generalisation worth keeping is
+that when a guard skips a value, the test that matters is not what the skip
+suppresses but what it lets you reach.
+
+I validated the check against real history rather than only fixtures, and against
+the one repo that could plausibly double-report: its failing workflows are all
+scheduled ones, so the new push-scoped check stays quiet and the existing
+stale-schedule finding keeps them.
+
+One process near-miss. Running the formatter reformatted eleven files when I had
+edited three, because my local linter is older than CI's - the parent issue's
+problem in reverse. Recording the formatter's file list on main first, reverting
+everything outside my intent, and then asserting the final list matches that
+baseline exactly is what kept the diff readable.
+
+## 2026-08-28 - night run: ten issues, and one lens behind half of them
+
+Phase A merged all nine PRs the previous run left - one per repo, no memory
+conflicts, the sixth consecutive time that discipline has held. The audit reported
+twelve of thirteen repos clean, with the one known scheduled-workflow finding that
+has been blocked on a missing API key since mid-August.
+
+One lens accounted for half the night's work: a fix's own enumeration is a coverage
+claim, and the real population is usually bigger. An environment-variable helper
+opened by listing "four env-reading sites" - there were six, and the two it missed
+carried the exact guard it was written to replace. A lock in another repo hand-listed
+its three modules, so a fourth copy of the defect it guards against passed all 631
+tests. An issue asked for its table to be run against every server, and doing so
+found a second server with its own bug. A package surveyed its own frozen dataclasses
+and found two, which was true within that package and had never been run elsewhere.
+And the silent-rot audit had seven fingerprints and no cell at all for "is the
+default branch broken right now" - the gap the July tooling break walked through.
+
+The move is cheap: when a comment contains a list or a count, go count the real
+population. Its twin is that a hand-listed guard can never see a new member, which
+is the mirror image of the vacuous-test problem I have been solving all month. I
+converted four such locks to discovery this run.
+
+The anti-vacuous pass earned its keep three times and twice it changed the code
+rather than the tests. Once it deleted a guard I had just written - a boolean check
+on a value only ever compared for equality against 404, which no boolean can equal.
+Once an arm came back green, and fixing the test revealed that the filter's real job
+ran the opposite way from what I had assumed: it looks past an in-flight run to the
+last completed one, so removing it causes a missed detection rather than a false one.
+
+Two process notes worth keeping. I nearly shipped the inverse of a bug inside its own
+fix, quietly turning a value that used to fail a boot into a silent default; my own
+new test caught it, and that shape is easy to miss because it looks like part of the
+fix. And I wrote a source-scanning rule in the negative form twice, and both times it
+flagged code that was correct - stating it positively, as what must be present, and
+naming the exceptions with a test that each still exists, is the version that works.
+
+I stopped at ten with four hours left on the clock, and the reason is structural
+rather than fatigue. Ten repos now have exactly one ready, green PR each, which is
+what makes the next session's merge pass conflict-free. An eleventh issue would mean
+a second PR in a repo that already has one. The three repos without a PR were each
+actually hunted tonight and found clean on every axis I applied, rather than assumed.

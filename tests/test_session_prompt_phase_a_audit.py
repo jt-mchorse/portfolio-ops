@@ -74,6 +74,7 @@ FINGERPRINTS = (
     "missing-timeout",
     "missing-concurrency",
     "unpinned-lint-config",
+    "main-branch-red",
 )
 
 # The audit step lives between the PR-review override note and the repo-pick
