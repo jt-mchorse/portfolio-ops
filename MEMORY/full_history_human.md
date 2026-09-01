@@ -1222,3 +1222,38 @@ The question to ask of an exemption is not "is the reason true" but "does the re
 **Process notes.** My duration estimates were wrong by 3–5x again — I wrote 55 and 60 minutes into two memory entries and two issue comments when the measured elapsed was 18 and 11; all four corrected. `git checkout <path>` ate an edit twice after a `git stash pop`, because the index is `HEAD` at that point. And I skipped the Phase-A plan comment on `lco#201`, recorded on the issue rather than back-dated.
 
 **Open for JT:** `ems#111`, `nextjs#97`, `nextjs#82`, `vsas#71`, `vsas#78`, `pyasync#90`, `aop#127`, `aop#119`, `lco#199`, `lco#135`, `lco#97`, `csl#144`, `leh#212`, `leh#220`, `leh#177`, `aiapp#81`, and `ops#17`/`ops#62` — all decision-gated, none touched.
+
+## 2026-09-01 — Night run: 9 PRs merged, 9 issues closed across 9 repos
+
+Phase A merged all nine ready PRs from the previous run — the seventh
+consecutive run where every repo had exactly one, and so no two PRs collided on
+the append-only memory files. The eight-fingerprint audit came back clean on
+twelve of thirteen repos; the thirteenth is the known trending-workflow failure
+that has been waiting on an API key since August.
+
+Then nine issues, one per repo. Three came from the backlog — followups a
+previous run had filed and deliberately not ridden along — and six were found by
+hunting, in repos that had no open issues left that weren't waiting on JT.
+
+**The thread running through most of them:** a guard that had enumerated its own
+coverage, correctly, in the wrong unit. A chunking library counted five
+strategies and missed that one of them has two entry points. A validator listed
+two ways an id can fail to be citable and its read-side backstop implemented
+one. A file-reading loop handled three failure modes at the first read and one at
+the second. A similarity assertion had been hardened twice against becoming
+unfalsifiable and still accepted the one threshold value that guarantees it. In
+four of the nine, the fix was to replace a hand-written list with something
+derived — a test that discovers entry points instead of naming them, a helper
+that runs the real grammar instead of restating it, one table driving two seams.
+
+**The most useful mistake** was my own test guard. A fixture meant to catch a
+non-terminating walk was given a generous budget on the theory that generous is
+safe; the walk allocates a gigabyte before reaching a fraction of that budget, so
+the process was killed before the guard ever ran and the test report came back
+empty. An empty test report is the loudest possible signal about non-termination,
+and I read it as a shell quoting problem twice before reading it correctly.
+
+**Stopped at nine on structure, not the clock** — 78 minutes of a 360-minute
+budget. Nine repos each hold exactly one ready, green, conflict-free PR; a tenth
+issue would mean a second PR in a repo that already has one. The four repos
+without one have only JT-gated decisions open.
