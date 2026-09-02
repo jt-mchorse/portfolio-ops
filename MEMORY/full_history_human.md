@@ -1257,3 +1257,98 @@ and I read it as a shell quoting problem twice before reading it correctly.
 budget. Nine repos each hold exactly one ready, green, conflict-free PR; a tenth
 issue would mean a second PR in a repo that already has one. The four repos
 without one have only JT-gated decisions open.
+
+## 2026-09-02 — night session: 9 merged, 12 issues across all 12 code repos
+
+**Phase A.** All nine ready PRs from the 09-01 run merged clean — the eighth
+consecutive run where the previous session left exactly one ready PR per repo
+and there were zero sibling MEMORY conflicts. The audit ran all eight
+fingerprints over 13 repos: 12 clean, one known finding (portfolio-ops
+`trending-daily`, now 8 consecutive failures, JT-blocked on the never-configured
+`ANTHROPIC_API_KEY`, unchanged since 2026-08-12). No new issue filed for it.
+
+**The whole run was one class across twelve repos, and the entry point was a
+single grep.** `llm-eval-harness`'s `_cap_base_for_temp` measured its NAME_MAX
+budget with `str.encode("utf-8")` under the strict error handler. NAME_MAX
+limits the bytes handed to the *kernel* — `os.fsencode` — and the two agree for
+every valid-UTF-8 name and differ for the rest by *raising*. Grepping
+`_MAX_TEMP_BASE_BYTES` across the portfolio turned up nine Python copies of the
+same helper and three TypeScript ports. "After shipping a fix, grep the
+portfolio for the pattern" has never paid this well.
+
+**But the per-repo work wasn't the fix — it was establishing what the local
+callers catch.** The line is identical twelve times and the consequence is
+different every time. `llm-cost-optimizer` reproduced its own guard's stated
+failure verbatim. `chunking-strategies-lab`, `prompt-regression-suite` and
+`embedding-model-shootout` leak a *content verdict*, because exit 1 means
+"findings" in those CLIs — a gating CI job reads "your dataset has problems"
+over a byte in a filename. `vector-search-at-scale` was already green for the
+wrong reason. `mcp-server-cookbook` broke a property its TypeScript twin states
+outright. `agent-orchestration-platform` is genuinely unreachable, and I said
+so. `ai-app-integration-tests` *is* reachable, through a public setter. One
+diff, twelve honest severities.
+
+**The dominant lens paid in every single repo: a guard's own prose is a test
+case — run it against a neighbouring input class.** "Without this guard it
+escaped `main` as a raw traceback at exit 1 — the 'success' range — *after* the
+bench already ran." "Colliding with the 'findings' code." "A complete,
+successful-looking benchmark followed by a stack." Each of those sentences was
+written to describe a failure the guard prevents, and each was reproduced
+exactly by an input class the guard's `except OSError` doesn't cover. A guard
+that names its own failure mode is handing you the repro.
+
+Its twin: **a docstring that names its family is a parity claim.** Both
+TypeScript ports list four or five sibling helpers, and every listed sibling
+carries the cap they lack — because the cap landed in mcp#96 and rag#128 *after*
+the ports were copied.
+
+**The most important thing I learned cuts both ways, and I got burned in both
+directions.** A test harness can manufacture a failure the real stream doesn't
+have: `capsys` substitutes a strict-encoding buffer for `sys.stderr` while a
+real process gets `backslashreplace`, so an in-process test died inside the
+guard's own `print` and I nearly filed a second bug that doesn't exist. I ran
+both before deciding. And the mirror cost three red CI runs: on ext4 the write
+*succeeds*, so the child prints the path, and `sys.stdout`'s `surrogateescape`
+correctly puts the original raw byte on the stream — which my
+`subprocess.run(text=True)` then decoded strictly *in the parent*. The code was
+right and the test couldn't read the answer. Capture bytes, and fix every
+sibling rather than only the ones CI flagged.
+
+**And I almost shipped one of them vacuous.** `surrogateescape` only
+round-trips U+DC80–U+DCFF. `os.fsencode` refuses U+D800 too, so a test built on
+it passes against unfixed code. I wrote the mcp issue with U+D800 because that
+is the surrogate the representability docs use — where the context is JSON
+*content*, and any lone surrogate qualifies. Caught only because the post-fix
+run returned a byte-for-byte identical message. When a fix changes nothing,
+suspect the input.
+
+Out of that came the test shape now used everywhere here: **assert a relation
+between two calls, not a fact about the filesystem.** For any name the host's
+own plain write accepts, the atomic path must accept it too; a host that
+refuses the plain write skips the row. ext4 accepts any non-NUL byte and APFS
+returns `EILSEQ`, and both are correct.
+
+**Two other repos got different lenses.** `nextjs-streaming-ai-patterns`: a
+guard shipped *yesterday* had the defect class it was written to catch — a
+partial population, scanning two flat directories while the repo already had a
+recursive `SOURCE_DIRS` walker two files over. And I built and rejected the
+plausible wrong fix there (adding `"app"` to a still-flat listing finds almost
+nothing while *looking* like coverage).
+
+**Stopped at twelve on structure, at 84 of 360 minutes.** All twelve code repos
+now have exactly one ready, clean, green PR; a thirteenth would mean a second PR
+in a repo that already has one, and a MEMORY append conflict for the next Phase
+A. Audited `git diff main...HEAD --name-only` on all twelve: zero stray
+artifacts, every branch exactly two MEMORY files plus the source file plus the
+test file.
+
+**Filed but not worked, both deliberately:** prs#160 (the write seams
+interpolate an unencodable path into stderr and are total *only* because
+`sys.stderr` defaults to `backslashreplace` — measured, not assumed) and mcp#161
+(a per-server README claims 60 tests against a measured 206, and nothing locks
+per-server counts; I did not guess a replacement because the claim's scope is
+ambiguous).
+
+**ops#71 not advanced,** for the same structural reason as last run and more
+strongly: every remaining row lives in a repo that now has a ready PR, so the
+set of conflict-free rows is empty. Honest remaining count still 14.
