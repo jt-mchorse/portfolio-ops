@@ -55,25 +55,64 @@ jobs:
           python3 scripts/audit_phase_a.py | tee audit.txt
           rc=${PIPESTATUS[0]}
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          # Second pass in --json for the machine-readable fingerprints the
+          # filing step compares against what was last reported (#72). Same
+          # detection, different rendering; the human-readable audit.txt above
+          # is what actually goes in the issue body.
+          python3 scripts/audit_phase_a.py --json > findings.json
           # Don't fail the step here — the next steps fan out on exit code.
           exit 0
 
-      - name: File rolling issue (findings, no open audit-cron issue)
+      - name: Report findings (file, or comment when the set changed)
         if: steps.audit.outputs.exit_code == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
+          # The dedupe is still keyed on the `audit-cron` label — that path is
+          # locked by tests/test_audit_cron_workflow.py and is not what changed.
+          # What changed is the PREDICATE (#72). This used to skip on the mere
+          # PRESENCE of an open issue, so #56 — open since 2026-06-29 and
+          # closable only by a secret JT has to configure (#17) — silenced
+          # every finding for ~10 consecutive weekly runs. Measured on the
+          # 2026-08-31 run: `findings: 1 across 13 repo(s)` immediately
+          # followed by `skipping new file`. Nothing was lost only because the
+          # set had not changed; the day it did, the cron would have found it
+          # and said nothing.
           existing=$(gh issue list \
             --repo "${{ github.repository }}" \
             --state open \
             --label audit-cron \
             --json number \
-            --jq 'length')
-          if [ "$existing" -gt 0 ]; then
-            echo "An open [audit-cron] issue already exists; skipping new file."
+            --jq '.[0].number // empty')
+
+          body_arg=""
+          comments_arg=""
+          open_arg=""
+          if [ -n "$existing" ]; then
+            open_arg="--has-open-issue"
+            gh issue view "$existing" --repo "${{ github.repository }}" --json body \
+              --jq '.body' > issue-body.md
+            # Oldest-first: audit_issue_sync lets the newest recorded block win,
+            # so an update comment supersedes the original body.
+            gh issue view "$existing" --repo "${{ github.repository }}" --json comments \
+              --jq '.comments | sort_by(.createdAt) | .[].body' > issue-comments.md
+            body_arg="--issue-body issue-body.md"
+            comments_arg="--issue-comments issue-comments.md"
+          fi
+
+          # shellcheck disable=SC2086  # the *_arg vars are deliberately unquoted flag pairs
+          action=$(python3 scripts/audit_issue_sync.py \
+            --findings-json findings.json \
+            --out-state state.md \
+            $open_arg $body_arg $comments_arg)
+          echo "audit_issue_sync decided: $action"
+
+          if [ "$action" = "silent" ]; then
+            echo "Finding set unchanged since it was last reported on #$existing; nothing to say."
             exit 0
           fi
+
           {
             echo "## Silent-rot audit findings"
             echo ""
@@ -87,14 +126,28 @@ jobs:
             cat audit.txt
             echo '```'
             echo ""
-            echo "_Filed automatically. Investigate each finding, fix or document, then close this issue. The cron will not file another until this one is closed._"
+            if [ "$action" = "comment" ]; then
+              echo "_The finding set changed since this issue was last updated, so this is a new comment rather than a new issue — the label dedupe still holds. A set that has not changed stays silent, including across the weekly \`consecutive_failures\` increment._"
+            else
+              echo "_Filed automatically. Investigate each finding, fix or document, then close this issue. While it is open the cron will comment here when the finding set CHANGES, and stay silent when it does not (#72)._"
+            fi
+            echo ""
+            echo "<!-- Machine-readable state for scripts/audit_issue_sync.py. Do not edit. -->"
+            cat state.md
           } > body.md
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "[audit-cron] silent-rot findings $(date -u +%Y-%m-%d)" \
-            --label audit-cron \
-            --label priority:med \
-            --body-file body.md
+
+          if [ "$action" = "comment" ]; then
+            gh issue comment "$existing" \
+              --repo "${{ github.repository }}" \
+              --body-file body.md
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "[audit-cron] silent-rot findings $(date -u +%Y-%m-%d)" \
+              --label audit-cron \
+              --label priority:med \
+              --body-file body.md
+          fi
 
       - name: Fail workflow on fetch/network error
         if: steps.audit.outputs.exit_code == '2'

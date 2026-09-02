@@ -91,6 +91,44 @@ def test_dedupe_label_reference(workflow: dict) -> None:
     )
 
 
+def test_dedupe_is_decided_on_content_not_on_presence(workflow: dict) -> None:
+    """The label dedupe stays; the PREDICATE is what #72 changed.
+
+    The gate used to be "an open issue exists -> say nothing". #56 has been
+    open since 2026-06-29 and can only be closed by configuring a secret (#17),
+    so ~10 consecutive weekly runs audited 13 repos, found something, and
+    discarded it. Measured on the 2026-08-31 run: `findings: 1 across 13
+    repo(s)` immediately followed by `skipping new file`.
+
+    The workflow must now hand the decision to `audit_issue_sync.py`, which
+    compares the finding *identities* against what was last reported, and must
+    have a `gh issue comment` path for the changed case. Asserting all three
+    together, because the fix is only complete if the comparison happens AND
+    its answer can actually leave the runner.
+    """
+    text = AUDIT_CRON_PATH.read_text(encoding="utf-8")
+
+    assert "scripts/audit_issue_sync.py" in text, (
+        "the filing step must delegate the file/comment/silent decision to "
+        "scripts/audit_issue_sync.py rather than skipping on issue presence"
+    )
+    assert "--json > findings.json" in text, (
+        "audit_issue_sync compares machine-readable findings; the audit step "
+        "must emit them with `audit_phase_a.py --json`"
+    )
+    assert "gh issue comment" in text, (
+        "a changed finding set while an issue is open must reach a human; "
+        "without the comment path the decision is computed and thrown away"
+    )
+
+    # And the old unconditional bail must be gone. Stated as absence because
+    # this exact line is what suppressed ten weeks of runs.
+    assert "already exists; skipping new file" not in text, (
+        "the presence-only skip is the bug in #72; the skip must now be "
+        "conditional on the finding set being unchanged"
+    )
+
+
 def test_pyyaml_installed(workflow: dict) -> None:
     # scripts/audit_phase_a.py's missing-timeout and missing-concurrency
     # fingerprints lazy-import pyyaml and degrade to "no findings" plus a
