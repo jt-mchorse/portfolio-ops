@@ -1352,3 +1352,84 @@ ambiguous).
 **ops#71 not advanced,** for the same structural reason as last run and more
 strongly: every remaining row lives in a repo that now has a ready PR, so the
 set of conflict-free rows is empty. Honest remaining count still 14.
+
+## 2026-09-02 — #72: the audit found things every week and threw them away
+
+`audit-cron.yml` de-duplicated by asking *"is any `audit-cron` issue open?"* and
+bailing. That is a check on **presence**, not on **content**. Issue #56 has held
+that slot since 2026-06-29, and it cannot be closed by a session — its only
+finding is blocked on a secret only JT can configure (#17). So the slot is held
+indefinitely *by construction*.
+
+Measured in production, on the 2026-08-31 scheduled run:
+
+```
+findings: 1 across 13 repo(s)
+An open [audit-cron] issue already exists; skipping new file.
+```
+
+The workflow is perfectly healthy — the last eight scheduled runs all conclude
+`success`. It runs, it audits 13 repos, it finds something, and it discards the
+answer. Roughly ten consecutive weekly runs. Nothing has been lost *yet*, only
+because the finding set hasn't changed; the day it does, the cron finds it and
+says nothing.
+
+This is the reporting-side twin of the gap #69 closed on the detection side.
+There, no fingerprint asked "is the default branch red right now". Here the
+audit asks correctly and nobody hears the answer. **Partition a detector into
+detect and report, and audit both halves** — and ask of any dedupe: who can
+release it, and *can* they?
+
+**The volatile-field trap is what makes the obvious fix wrong.** Comparing the
+rendered findings text posts a comment every single week, because
+`stale-schedule` counts up `consecutive_failures` — that is literally the delta
+between #56 (filed at 7) and today (8). It isn't alone: `paired-failure` and
+`main-branch-red` carry a `sha`, `phantom-ci` carries `sample_shas`,
+`missing-timeout` carries a `jobs_missing` list that shifts as a workflow is
+edited. So the comparison is on a per-kind **identity** — the fields naming
+*which* thing is wrong — and the fields describing *how much* are excluded.
+
+I built both green neighbours and tested against them. An identity that
+*includes* the counter is a spam generator; an identity of `()` collapses every
+finding in the portfolio into one. Both pass a naive "it stays silent" test. The
+mirror assertion — identity fields *do* change identity — is what kills the
+second one.
+
+A kind with no declared identity **raises**. Falling back to compare-everything
+makes a new fingerprint spam weekly; falling back to compare-nothing makes it
+invisible; and which one you got would be an accident of whichever volatile
+field it happened to carry. A loud error beats both, and the coverage test
+*discovers* the kinds from `audit_phase_a.py` rather than listing them, with an
+anti-vacuous floor so a regex matching nothing can't pass.
+
+"No recorded block" means **unknown**, not empty. #56 predates this mechanism,
+so the first run after this ships will comment on it once. Being noisy once
+beats staying silent forever, and that trade is written into the docstring
+rather than left to be rediscovered.
+
+**Dry-run against live production data** — the real #56 body and a real audit
+run, not fixtures: today → `comment`; next week with the counter at 9 and the
+state recorded → `silent`; next week plus one new `main-branch-red` → `comment`.
+A decision function is cheap to run against the actual state it will see.
+
+The existing `test_audit_cron_workflow.py` dedupe lock was **extended, not
+replaced** — the label path it pins isn't what changed. The new arm pins that
+the decision is delegated, that `--json` findings are produced for it, that a
+`gh issue comment` path exists so the answer can leave the runner, and that the
+old unconditional skip line is gone.
+
+Three reverts, each caught by the assertion written for it: identity including
+`consecutive_failures` → 3 red; identity of `()` → 2 red; workflow restoring the
+presence-only skip → 1 red.
+
+**Why this work, this session:** it was the only unblocked issue in the one repo
+without a ready PR, and it turned up by reading #56 — which is nominally a
+duplicate of the JT-blocked #17, and which turned out to be actively suppressing
+the detector.
+
+**Open questions / blockers:** none for this change. #17 and #56 still need the
+`ANTHROPIC_API_KEY` secret; the point of this work is that the cron keeps
+reporting everything else while they wait.
+
+**Next session:** this repo has no local venv and CI runs Python 3.12 against a
+3.14 machine interpreter — build a throwaway venv with `pytest` + `pyyaml`.
