@@ -1855,3 +1855,26 @@ context_for_next_session:
 decisions_made: []
 followups: []
 ---
+
+---
+session: 2026-09-03T08:50Z
+issue: 71
+focus: the_portfolio_wide_frozen_dataclass_sweep_omitted_Any_from_its_own_population_rule_and_missed_the_ONE_confirmed_defect
+phase: night_session_multi_issue_loop_issue_9
+delta:
+  files_changed: 2
+  tests_added: 16
+  suite: 255_to_271_green
+measured:
+  correction: "re-ran #71's sweep with Any added: NINE more fields across FIVE repos - leh _EvalSpec.answer_source; lco CallResult.response, RouterDecision.cheap_response, CacheLookupResult.payload, CacheRecord.payload, FalsePositiveSample.cached_response+actual_response; prs SlotDelta.actual_value; pyasync ToolResult.value"
+  the_sting: "ToolResult.value is the ONLY member of this class confirmed as a live defect since (#106 tonight) and it was in the MISSED set - the sweep run to GENERALIZE the pyasync lens missed a third instance IN PYASYNC"
+  anti_vacuous: "THREE variants - drop Any 6 red (incl. the named regression test); drop the __module__ guard 1 red; make it a gate 1 red"
+context_for_next_session:
+  - A_SWEEP_HAS_A_POPULATION_RULE_AND_THAT_RULE_IS_ITSELF_A_CLAIM_TO_FALSIFY_71_swept_SIX_repos_for_frozen_dataclasses_with_mutable_fields_and_its_MUTABLE_list_was_dict_list_set_Mapping_MutableMapping_bytearray_WITH_NO_Any_so_the_whole_21_item_worklist_UNDER_COUNTS_BY_ONE_RULE_ACROSS_ALL_SIX_REPOS
+  - AND_THE_MISSED_ITEM_WAS_THE_ONLY_ONE_ANYONE_LATER_CONFIRMED_i_found_ToolResult_value_INDEPENDENTLY_tonight_via_the_docstring_survey_lens_and_only_afterwards_noticed_71_had_swept_that_exact_package_and_reported_TWO_OK_ROWS_TWO_INDEPENDENT_ROADS_TO_THE_SAME_BUG_IS_A_SIGNAL_THE_POPULATION_RULE_IS_WRONG_NOT_THAT_YOU_GOT_LUCKY
+  - WHEN_A_SWEEP_LIVES_IN_AN_ISSUE_BODY_ITS_RULE_CANNOT_BE_TESTED_AND_CANNOT_BE_RE_RUN_committing_it_to_scripts_with_a_test_that_REBUILDS_THE_CONFIRMED_DEFECT_SHAPE_is_what_stops_the_rule_narrowing_again_silently
+  - KEEP_IT_A_MEASUREMENT_NOT_A_GATE_exit_0_always_because_a_GAP_is_a_candidate_and_71s_OWN_triage_found_one_of_its_two_spot_checks_UNREACHABLE_a_gate_would_fail_every_repo_on_a_list_whose_real_hit_rate_is_about_a_third_THE_TEST_test_main_exits_zero_even_with_gaps_PINS_THAT
+  - portfolio_ops_CI_RUNS_PYTEST_ONLY_no_ruff_gate_and_13_of_22_files_are_already_ruff_format_dirty_SO_FORMAT_ONLY_YOUR_OWN_FILES_reformatting_the_repo_would_be_pure_churn_in_the_diff
+decisions_made: []
+followups: []
+---

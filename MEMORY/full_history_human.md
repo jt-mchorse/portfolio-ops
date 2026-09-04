@@ -1433,3 +1433,45 @@ reporting everything else while they wait.
 
 **Next session:** this repo has no local venv and CI runs Python 3.12 against a
 3.14 machine interpreter — build a throwaway venv with `pytest` + `pyyaml`.
+
+## 2026-09-03 — #71: the sweep's own population rule was under-counting
+
+#71 is a portfolio-wide worklist: 21 frozen dataclasses across six repos whose
+mutable field is never copied in. It was produced by a ~40-line script pasted
+into the issue body, whose `MUTABLE` list was
+`dict`, `list`, `set[`, `Mapping`, `MutableMapping`, `bytearray` — and not
+`Any`.
+
+Re-running it with `Any` included finds nine more fields across five repos. One
+of them is `async_pipelines.tool_dispatch.ToolResult.value`, which is the only
+member of this whole class anyone has confirmed as a live defect since — and I
+confirmed it earlier tonight, independently, via a different lens (a docstring
+claiming its package had only two such classes). Only afterwards did I notice
+that #71 had swept that exact package and reported two `OK` rows and no gaps.
+
+That coincidence is the finding. The sweep was run *specifically* to generalize
+the lens that came out of `python-async-llm-pipelines`, and it missed a third
+instance **in `python-async-llm-pipelines`** — for the same reason the package's
+own docstring missed it. `Any` is where an unconstrained mutable value hides, so
+a scan looking for `dict`/`list` is technically correct and blind to exactly the
+case it exists for. Two independent roads arriving at the same bug is a signal
+that the population rule is wrong, not that the second road got lucky.
+
+A sweep has a population rule, and that rule is itself a claim worth
+falsifying. When the sweep lives in an issue body the rule cannot be tested and
+cannot be re-run, so it is now `scripts/sweep_frozen_dataclasses.py` with
+sixteen tests — including one that rebuilds the confirmed #106 shape and fails
+if `Any` ever leaves the set. Dropping `Any` turns six red.
+
+The other rules are stated rather than assumed: immutable-first, so
+`tuple[dict, ...]` is not noise; `__module__` matching, so a re-exported class
+is not counted once per importer (dropping it turns one red); per-field copy
+detection, so a `__post_init__` that copies one field cannot vouch for another.
+
+And it exits 0 always. A `GAP` is a candidate, not a bug — #71's own triage
+found one of its two spot-checks unreachable — so a list with a real-hit rate
+around a third must not be a gate. There is a test pinning that too, because
+"make it stricter" is the obvious next edit and it would be the wrong one.
+
+**Next session:** the corrected worklist is 30 candidates, posted to #71 for
+per-repo triage.
