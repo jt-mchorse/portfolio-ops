@@ -1475,3 +1475,22 @@ around a third must not be a gate. There is a test pinning that too, because
 
 **Next session:** the corrected worklist is 30 candidates, posted to #71 for
 per-repo triage.
+
+## 2026-09-08 — Day session: 5 merges, 8 issues across 8 repos
+
+**Phase A.** Merged five clean PRs from the 2026-09-07 night run — `llm-eval-harness#233`, `llm-cost-optimizer#212`, `rag-production-kit#206`, `chunking-strategies-lab#183`, `mcp-server-cookbook#165`. All green, all in different repos, so none of the append-only MEMORY conflicts that bite same-repo siblings. The silent-rot audit reported clean on twelve of thirteen repos; the one finding is the known JT-gated `trending-daily` secret cluster (ops #56/#17).
+
+**Eight issues shipped, one lens behind half of them.** When a fix explains *why its bug was hard to see*, that sentence names a property — and the question is which sibling lacks it.
+
+- `prompt-regression-suite#163`: `_eprint`'s docstring says the stderr bug "does not fire on a real process: CPython gives `sys.stderr` `errors="backslashreplace"`". `sys.stdout` is `strict`. Two lines apart, the failure path was funnelled and the success path printed the same operator path bare.
+- `llm-eval-harness#234`: `_validate_record` runs on the **load** path, so `dump_jsonl` wrote a file its own loader rejects on the very next read.
+- `embedding-model-shootout#139`: `_axis_limits` was right; its call site had `if len(results) > 1`, and the shipped figure is a single-result plot. `docs/pareto.svg` carried x ticks at −0.04.
+- `llm-cost-optimizer#213`: an absent `usage` reported, an absent `content` did not — and the guard had already written the principle down.
+
+**The twin: a lock can pin the wrong unit, and then it hides the bug.** `mcp-server-cookbook#166` — `check-readme.mjs` compared README test-count claims to a *static* count of test functions while the README annotates a *command*, whose output is test cases. All five numbers were roughly half the truth. The lock is why nobody noticed: it made each claim self-consistent with an approximation and froze it there. One of the three instances was my own — a stdout source lock phrased over `sys.stdout` misses a bare `print`, because stdout is `print`'s default.
+
+**Method notes.** Discover the population rather than listing it: `ai-app-integration-tests#115`'s AST lock found a fourth site the issue had not named, on the response path, where the consequence is bigger than the three it did. A check cannot lock itself against its own deletion. When two readings compete, find the instance a human actually maintained. And a parametrize must prove its parameters do different things — `rag-production-kit#207`'s 21-cell sweep is red on only 6 cells against the unfixed code.
+
+**Three decisions:** leh D-021 (the canonical writer enforces the loader's representability rule), rag D-018 (the reranker seam preserves input order among equal scores), mcp D-011 (README counts are runtime case counts).
+
+**Why it stopped at 86 of 180 minutes.** Three consecutive empty hunt angles in `agent-orchestration-platform` — the env population is complete, the ordering is deterministic, and the egress aliasing was already closed by #97. The four untouched repos (`vector-search-at-scale`, `python-async-llm-pipelines`, `agent-orchestration-platform`, `nextjs-streaming-ai-patterns`) carry only `decision-revisit` issues awaiting JT.
