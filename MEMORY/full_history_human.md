@@ -1494,3 +1494,61 @@ per-repo triage.
 **Three decisions:** leh D-021 (the canonical writer enforces the loader's representability rule), rag D-018 (the reranker seam preserves input order among equal scores), mcp D-011 (README counts are runtime case counts).
 
 **Why it stopped at 86 of 180 minutes.** Three consecutive empty hunt angles in `agent-orchestration-platform` — the env population is complete, the ordering is deterministic, and the egress aliasing was already closed by #97. The four untouched repos (`vector-search-at-scale`, `python-async-llm-pipelines`, `agent-orchestration-platform`, `nextjs-streaming-ai-patterns`) carry only `decision-revisit` issues awaiting JT.
+
+## 2026-09-09 (night) — 8 PRs merged, 11 issues closed across 11 repos
+
+Phase A merged the eight ready PRs from the previous session — all clean, all in
+different repos, so no MEMORY conflicts. The silent-rot audit came back clean on
+twelve of thirteen, with only the known JT-gated `trending-daily` secret cluster
+outstanding.
+
+**The method that did most of the work: hunt the run's own Phase A merges.**
+Seven of the eleven issues came from PRs merged at 07:05 the same morning.
+`llm-cost-optimizer` was the purest instance — #213's new constant carried a
+paragraph arguing for `Mapping`/`Sequence` over `dict`/`list`, and the sibling
+module still said `dict` at four sites. A rule argued out in prose in one module
+is not a rule the sibling module has. A `UserDict` response reported $0.00 saved
+on 20,000 cached tokens.
+
+**The lens that paid six times: the copy-instead-of-share neighbour passes every
+behavioural test.** In `llm-eval-harness`, `chunking-strategies-lab`,
+`prompt-regression-suite`, `embedding-model-shootout`, `mcp-server-cookbook` and
+`agent-orchestration-platform`, I built the neighbour that inlines a rule instead
+of sharing it, ran it, and in every case only a structural arm caught it. A
+behavioural suite cannot distinguish one definition from two identical ones — by
+construction. When the fix *is* the sharing, the structural test is not a bonus.
+
+**Twice, a serializer's own coercion laundered the bug.** `tags="urgent"` became
+six tags through `list(self.tags)`, and `notes="chunk overlap looks high"` became
+24 single-character notes the same way. Both round-tripped cleanly. Both fixes
+were to check the source object rather than the serialized one, and in both the
+obvious neighbour — checking the record — passes almost every row.
+
+**Four of my own probes came back falsely green, and each taught more than a
+hit.** In `rag-production-kit` I rewrote a scan three times before it caught the
+bug it was written for. In `prompt-regression-suite` three of five table rows had
+the value in the label only and reported "round-trips OK". In
+`mcp-server-cookbook` reverting the new arm left all 32 tests green, because
+every test called the predicate directly rather than its call site. A table that
+agrees with the unfixed code is indistinguishable from a clean hunt.
+
+I also broke a gated job with a comment: a schema comment ending in `(#182);`
+cut a `CREATE TABLE` in half, because the conftest SQL splitter respected `$$`
+and nothing else. Rewording would have gone green and left the landmine, so the
+splitter was fixed and given the test it never had.
+
+Three CI failures were mine and all were caught and fixed before close: that
+splitter, a ruff formatting difference between the local 0.15.13 and CI's
+unpinned newer version, and two unused bindings in a repo whose eslint gate I had
+not run locally. Every one of the eleven PRs is green, ready and mergeable at
+close, and every branch diff is code + tests + docs + a separate MEMORY commit.
+
+I badly misjudged elapsed time early on — I believed 245 minutes had passed when
+41 had, and put wrong figures in three close comments before checking the clock.
+The whole run was about 135 minutes.
+
+`python-async-llm-pipelines` had its fourth empty hunt and is the only repo
+without a PR: its numeric and frozen-dataclass axes are closed, and it has no
+JSON readers at all, so this run's strongest lens had no surface there. Every
+other code repo now has exactly one ready PR, so the next Phase A has no sibling
+MEMORY conflicts.
