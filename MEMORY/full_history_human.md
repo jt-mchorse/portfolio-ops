@@ -1663,3 +1663,44 @@ there is a documented deliberate choice and not mine to overrule. Two decisions 
 (`embedding-model-shootout` D-011, `agent-orchestration-platform` D-015). All twelve
 working trees clean with nothing unpushed. Three issues filed and not worked. 159
 minutes of a 360-minute cap.
+
+## 2026-09-14 (night) — 11 merges, 2 issues closed, and four repos that turned out to be clean
+
+**Phase A.** Merged 11 ready PRs, one per repo, all green and conflict-free — the
+whole output of the 2026-09-11 run. The audit was re-run *after* the merges and all
+12 code repos still came back clean, so nothing went red on a default branch. The
+only finding remains `portfolio-ops`' `trending-daily`, now at 8 consecutive
+failures; that is the JT-gated API-key cluster (ops#56/#17) and no new issue was
+filed for it.
+
+**The lens that paid.** Both issues closed this session came down to the same
+question: *what population does this emptiness claim actually walk?*
+
+In `nextjs-streaming-ai-patterns#127`, a helper's docstring said two of its known
+limits were "not reachable in this repo". Its two reachability probes really do come
+back empty — but they scan `lib` + `components` + `app`, while the structural locks
+that use the helper strip **test** files, which is where all 26 truncations live. The
+claim was not wrong; it was scoped to the wrong corpus. That reframing is why the fix
+is a census over every directory any lock strips, rather than a more forgiving helper.
+
+In `llm-eval-harness#241` the same instinct applied to the issue itself. It asserted
+the demo artifact was committed and browsable; the directory has been gitignored since
+the commit that created the capture script, and has never been tracked. Two of three
+acceptance criteria were unactionable as written — and checking that is what surfaced
+the real defect a layer down: the demo's numbers had no value lock at all, while the
+README's did, and one commit had moved both.
+
+**Four repos hunted and found clean.** `llm-cost-optimizer`, `rag-production-kit`,
+`vector-search-at-scale` and `mcp-server-cookbook` each got a real hypothesis and each
+falsified it — a dict batch response fails loudly rather than silently, `_get_usage`
+already normalises mappings, the container rule *is* swept repo-wide, the SQL
+splitter's guard population is exactly right, and no MCP server has nested source
+directories. Five hypotheses, no defects. That is a result worth recording rather than
+a shortfall: the duck-typed-read and incomplete-sweep veins are worked out, and the
+next run should start somewhere else.
+
+**Decision.** `nextjs` D-014 — the comment stripper stays line-suffix-dropping, and its
+limits are declared *and measured* rather than asserted unreachable.
+
+**Open for JT.** PRs #244 (llm-eval-harness) and #129 (nextjs-streaming-ai-patterns),
+both ready and green. `llm-eval-harness#243` filed at priority:low.
