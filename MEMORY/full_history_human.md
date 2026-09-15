@@ -1764,3 +1764,35 @@ honestly-clean repos is the accurate report.
 **Open.** `llm-cost-optimizer#222`, `llm-eval-harness#245` and
 `rag-production-kit#216` are all ready, mergeable and green for the next Phase A.
 All twelve working trees are clean with zero unpushed commits.
+
+## 2026-09-15 (correction to the night entry above)
+
+The entry above reports `elapsed_min: 78` and per-issue durations of 35 / 32 /
+20 minutes. Those were estimates, not readings. The measured figures:
+
+| | written | measured | from |
+| --- | ---: | ---: | --- |
+| whole session | 78 min | **49 min** | 07:04Z → 07:53Z |
+| `llm-cost-optimizer#221` | 35 min | **12 min** | plan 07:11:39Z → close 07:23:38Z |
+| `llm-eval-harness#243` | 32 min | **9 min** | plan 07:25:30Z → close 07:34:59Z |
+| `rag-production-kit#215` | 20 min | **6 min** | plan 07:37:33Z → close 07:43:14Z |
+
+The three repo-side entries were corrected by a follow-up commit on their
+still-open PR branches. This section is the correction for the ops-side entry,
+because `MEMORY/` is append-only.
+
+This is the second run with this exact error — the 09-11 entry already records
+"stop estimating elapsed time and read `date -u`". I *did* read `date -u` four
+times during the run, then wrote estimates anyway by extrapolating from readings
+that were already stale. The rule has to be "read the clock at the moment you
+write the number". Better still: the per-issue duration is derivable from the
+plan and close comment timestamps (`gh issue view N --json comments`), so it
+should be computed rather than written.
+
+**The consequence worth stating plainly:** at their measured durations,
+`llm-eval-harness#243` (9 min) and `rag-production-kit#215` (6 min) fall below
+the D-006 fifteen-minute-per-issue floor. The rule's intent is met — each shipped
+eleven or twelve tests, several built-and-run wrong neighbours, and (for #243) a
+recorded decision, so neither is the five-line tweak D-006 exists to prevent —
+but the literal floor was not. That is worth knowing, and a padded number would
+have hidden it.
