@@ -1704,3 +1704,63 @@ limits are declared *and measured* rather than asserted unreachable.
 
 **Open for JT.** PRs #244 (llm-eval-harness) and #129 (nextjs-streaming-ai-patterns),
 both ready and green. `llm-eval-harness#243` filed at priority:low.
+
+## 2026-09-15 (night) — 2 merges, 3 issues closed, 5 repos hunted clean
+**Duration:** ~78 min of a 360-min cap · Phase A + multi-issue loop
+
+**Phase A.** Merged the two ready PRs from the 09-14 run — `llm-eval-harness#244`
+(demo drift value lock) and `nextjs-streaming-ai-patterns#129` (stripComments
+truncation census). Both green, additive, tests present, MEMORY committed
+separately. The silent-rot audit reported 12 clean code repos; the only finding
+is portfolio-ops' `trending-daily`, the known JT-gated secret cluster
+(ops#56/#17), now at 7 consecutive failures. Re-run after the merges: still 12
+clean, so nothing broke a default branch.
+
+**The three issues closed.** Two were hunted and one was carried from yesterday.
+
+- **`llm-cost-optimizer#221`** — `tune_threshold.py` published the mean of an
+  *empty* class as `0.0`. These are judge scores on `[0, 1]`, so that is the
+  floor of the metric's own range. Three of the eight rows of the committed
+  `docs/threshold_demo.json` — the file the README's own command writes — carried
+  a number that was never measured, and because both ends of a sweep empty a
+  class by construction, the *endpoints of every sweep* were the fabricated ones.
+  Now `null`, matching the `"router_stats": null` that `docs/savings.json`
+  already published. D-018.
+- **`llm-eval-harness#243`** — documented and counted the out-of-support mass the
+  JSD axes are structurally blind to. `DriftReport` gains
+  `n_length_off_support` / `n_judge_off_support`. D-023.
+- **`rag-production-kit#215`** — `rerank_delta_ndcg` reported `1.0`, the top of
+  its range, for a reranker that returned documents it was never given. The same
+  event with a non-empty `before` already reported `0.0`.
+
+**The pattern worth keeping.** Two of the three are the same defect shape in two
+different repos: *a default sitting at an extreme of the metric's own range*. And
+both had the same tell — the repo argued elsewhere that the value was meaningful.
+llm-cost-optimizer's CLI already refuses a fabricated *dollar* at JSON egress
+while the quality fields in the same write had no guard; rag's duplicate guard,
+four lines above the defect, says a duplicate pushes the value "past its
+documented 1.0 ceiling, which is impossible". When a repo argues a value is a
+real ceiling or floor, grep for where it is used as a sentinel.
+
+**Five repos hunted and clean**, every hypothesis falsified firsthand:
+chunking-strategies-lab (its `LateChunk` has no guard, but every poisoned shape
+is caught downstream, and its matrix artifacts regenerate with only
+`wall_clock_ms` moving), nextjs (two locks name a wider population than they
+walk — but nothing outside `test/` writes the rule today, so it is latent; filed
+as #130 at `priority:low`), prompt-regression-suite (its tolerance distribution
+*already* uses `None` for the empty case), embedding-model-shootout (the
+documented aggregate command is a byte-identical no-op and the Pareto SVG
+regenerates identically), and mcp-server-cookbook (all five runtime test counts
+match exactly: 185, 250, 167, 67, 276).
+
+**Why this stopped at 78 minutes of a 360-minute cap.** Not the clock. Every
+remaining open issue across all twelve code repos is a `decision-revisit` or an
+operator-only demo capture — the non-gated backlog is empty, so this was a hunt
+run by construction. After five consecutive clean repos, continuing would have
+meant manufacturing findings, which is exactly the failure mode the
+"stop after two empty hunts" rule exists to prevent. Three real issues and five
+honestly-clean repos is the accurate report.
+
+**Open.** `llm-cost-optimizer#222`, `llm-eval-harness#245` and
+`rag-production-kit#216` are all ready, mergeable and green for the next Phase A.
+All twelve working trees are clean with zero unpushed commits.
