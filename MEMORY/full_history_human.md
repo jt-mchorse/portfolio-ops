@@ -1796,3 +1796,72 @@ eleven or twelve tests, several built-and-run wrong neighbours, and (for #243) a
 recorded decision, so neither is the five-line tweak D-006 exists to prevent —
 but the literal floor was not. That is worth knowing, and a padded number would
 have hidden it.
+
+## 2026-09-22 — Night session: 7 merges, 8 issues closed, all 12 code repos touched
+**Duration:** 82 min measured (07:11Z → 08:33Z) of a 360-minute cap
+
+Phase A merged seven ready PRs from the 09-21 run — one per repo, all green,
+zero MEMORY conflicts — and the silent-rot audit came back 12 clean both before
+and after, with only the known JT-gated `trending-daily` secret cluster showing.
+
+Eight issues closed. Four came from the backlog the previous run filed
+(`llm-cost-optimizer#224`, `rag-production-kit#218`, `vector-search-at-scale#145`,
+`python-async-llm-pipelines#113`) and four were hunted this run
+(`llm-eval-harness#248`, `agent-orchestration-platform#145`,
+`embedding-model-shootout#147`, `ai-app-integration-tests#123`). Five decisions
+were recorded: lco D-020, rag D-019, vsas D-013, leh D-025, aop D-016.
+
+**The lens that dominated the run** was reading a prior fix's own prose as a
+general claim and then counting what the patch actually touched. It paid in four
+repos. D-024 in `llm-eval-harness` wrote that "the support is the set of buckets
+the *golden* histogram occupies, not the set of centroids that exist" and fixed
+the count — while the ranking one block down still walked every centroid, under a
+field named `distance_to_nearest_golden_cluster`. `embedding-model-shootout`'s
+#145 argued about a number at the good end of a comparison and fixed three of the
+four cells in one f-string. `agent-orchestration-platform`'s D-015 said "read the
+DDL beside every multi-field guard" and matched three of the table's four numeric
+columns. And `ai-app-integration-tests`' #122 wrote the sentence saying a drift
+check could see the example-app suite, when no check read it. The sharpened form:
+a docstring explains *why* in terms that do not mention the specific field, so the
+explanation covers siblings the patch does not — grep for the other members of
+the class the sentence describes, not for the field it names.
+
+**The process lesson is less comfortable.** Three times in one run, my own
+non-vacuity or wiring arms walked a wider population than the property actually
+discriminates, and each one passed against the very neighbour it existed to
+reject. In leh#248 I guarded on "the search found a golden-empty centroid" when
+the property differs only if a *candidate is assigned* to one — of 400 corpora,
+six had the former and zero the latter. In pyasync#113 I wrote a dropped-flag
+perturbation that passed against correct code, because every documented flag
+already equals the parser's default. In aiapp#123 I asserted that *some* line in
+`ci.yml` writes the report path, when the unit of that trap is the **job** —
+jobs don't share `/tmp`. The standing correction: build the neighbour first, and
+keep the arm only if the neighbour reddens it.
+
+I also retyped rendered numbers twice. In rag#218 I pasted eight displacement
+values at sixteen digits from a table I had printed at six, and three were wrong.
+In ems#147 I wrote `"0.014"` for a value whose true render is `"0.013"`, taken
+from a docstring's prose. One of those reached CI: rag#220's `unit (3.11)` job
+went red on a pinned float and a pinned collision count, both of which turn on
+exact float equality and therefore on the host — my venv is CPython 3.14 on
+arm64, CI is 3.11 on x86-64. Fixed by a follow-up commit on the open branch, not
+a force-push, and the "host-environment assertions are not tests" note now covers
+floating point as well as clocks and paths.
+
+Three repos came back genuinely clean, and that is part of the report rather than
+a gap in it. `chunking-strategies-lab`'s only unmirrored loader rule is the
+duplicate-id one, and nothing consumes per-query results by an id-keyed dict, so
+it is latent with no consequence. In `prompt-regression-suite`, `run` is the only
+command that reads candidates by key, so #171's key-space fix is complete. In
+`mcp-server-cookbook`, every `tools/*.mjs` is invoked in CI — the two that aren't
+are an operator demo script and a library whose test does run.
+`nextjs-streaming-ai-patterns` yielded only a miscount in a comment, filed as
+`#132` at `priority:low` rather than padded into a full cycle.
+
+All eight PRs are ready, CLEAN and green at close; the other four repos have no
+open non-draft PRs, so the next Phase A has zero sibling-MEMORY conflicts. The
+non-gated backlog is down to one low-priority item, so the next run is a hunt run
+by construction again.
+
+**Blockers for JT:** unchanged — the `trending-daily` secret cluster (ops#56 /
+ops#17) and the standing decision-revisit set across the repos.
