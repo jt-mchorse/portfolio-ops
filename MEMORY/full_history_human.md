@@ -1865,3 +1865,18 @@ by construction again.
 
 **Blockers for JT:** unchanged — the `trending-daily` secret cluster (ops#56 /
 ops#17) and the standing decision-revisit set across the repos.
+
+## 2026-09-23 — Night session: 8 merges, 7 issues closed, 5 repos clean
+**Duration:** ~63 min (measured) · **Repos worked:** llm-eval-harness, rag-production-kit, chunking-strategies-lab, nextjs-streaming-ai-patterns, prompt-regression-suite, embedding-model-shootout, vector-search-at-scale
+
+Phase A merged the eight ready PRs from the previous run, one per repo, all green with MEMORY committed separately. The audit came back clean on all twelve code repos before and after; the only finding is the known JT-gated `trending-daily` secret cluster in portfolio-ops.
+
+The run's dominant shape was **a fixed-decimal renderer collapsing a measured value to an extreme**. It paid twice: `embedding-model-shootout` was still rendering `recall@k` and `NDCG@10` at a bare `.3f` after two prior fixes had given latency and cost a significant-figures renderer, so a sweep that found one gold document in four thousand published a row byte-identical to the one that found none; and `vector-search-at-scale`'s `$/M queries` column is literally `$/query × 1e6` and was still `.2f`, publishing `$0.00` above 5,638 qps while the cell beside it read `$0.00000000470`. Sweeping for the pattern turned up a third (`chunking-strategies-lab`'s wall-clock column at zero decimals, filed) and falsified a fourth (`llm-cost-optimizer`'s savings columns cannot reach the cliff — measured across six workload sizes).
+
+The single best finding was `rag-production-kit`: `started_at` had been the literal `"2026-05-16T00:00:00Z"` since the file was created. The determinism defence dies on the record's own contents — `git_sha` and `run_id` both move on every commit — so every artifact asserted a run in May against a commit from September.
+
+**Two things I got wrong and caught by building the neighbour rather than by reading.** In `rag` the arm guarding "one run is one stamp" called the real clock, and the un-threaded neighbour passed it, because three sub-millisecond calls land in the same second. In `vector-search-at-scale` my arms tested the *formatter*, which was already correct — the defect was that the renderer did not call it — so a revert of both call sites left every one of them green. Both are the same lesson: test the drawn thing, and keep an arm only if the neighbour reddens it.
+
+Five repos were hunted and came back genuinely clean: `llm-cost-optimizer`, `python-async-llm-pipelines`, `agent-orchestration-platform`, `mcp-server-cookbook`, `ai-app-integration-tests`. The working loop stopped at 63 of 360 minutes on that evidence, not on the clock.
+
+**For JT:** two issues are filed and ready but deliberately not worked — `rag-production-kit#223` and `chunking-strategies-lab#196` — because both repos already have an open PR touching append-only `MEMORY/`. Merge those PRs first and the two issues are immediately pickable.
