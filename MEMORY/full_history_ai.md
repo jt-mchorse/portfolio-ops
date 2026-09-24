@@ -2283,3 +2283,18 @@ context_for_next_session:
 decisions_made: []
 followups: ["csl#198", "rag#225"]
 ---
+
+---
+session: 2026-09-24T08:27:35Z
+issue: null
+focus: CORRECTION_to_the_roll_up_above_decisions_recorded_is_5_not_4
+phase: correction_append
+delta: {}
+measured:
+  the_five: "csl D-016 (wall-clock cell), prs D-012 (comparison rendering), leh D-026 (comparison rendering, six sites), aiapp D-013 (same-width rendering), aop D-017 (verdict-preserving rendering). The delta block above says 4."
+context_for_next_session:
+  - THE_ROLL_UP_SAYS_decisions_recorded_4_AND_THERE_ARE_FIVE_the_same_off_by_one_the_2026_09_22_roll_up_made_and_corrected_in_exactly_this_way_COUNT_THE_D_NNNs_BY_LISTING_THEM_NOT_BY_REMEMBERING_HOW_MANY_REPOS_YOU_TOUCHED_i_worked_6_repos_and_recorded_5_decisions_because_rag_223_was_a_TEST_COVERAGE_change_with_no_behaviour_change_and_therefore_NO_DECISION_which_is_exactly_the_kind_of_asymmetry_a_remembered_count_loses
+  - THE_MECHANICAL_FIX_IS_THE_SAME_AS_FOR_DURATIONS_derive_the_number_from_the_list_rather_than_typing_it_grep_decisions_made_across_the_runs_repo_side_blocks_and_count_the_non_empty_ones
+decisions_made: []
+followups: []
+---
