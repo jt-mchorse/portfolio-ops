@@ -1880,3 +1880,32 @@ The single best finding was `rag-production-kit`: `started_at` had been the lite
 Five repos were hunted and came back genuinely clean: `llm-cost-optimizer`, `python-async-llm-pipelines`, `agent-orchestration-platform`, `mcp-server-cookbook`, `ai-app-integration-tests`. The working loop stopped at 63 of 360 minutes on that evidence, not on the clock.
 
 **For JT:** two issues are filed and ready but deliberately not worked — `rag-production-kit#223` and `chunking-strategies-lab#196` — because both repos already have an open PR touching append-only `MEMORY/`. Merge those PRs first and the two issues are immediately pickable.
+
+## 2026-09-24 — Night session: 7 PRs merged, 6 issues closed, one class in six spellings
+
+**Duration:** ~74 min of a 360-min cap · **Repos worked:** 6 · **Repos hunted clean:** 4
+
+Phase A merged the seven ready, green PRs left by the previous session (leh#251, rag#222, csl#195, nextjs#133, prs#174, ems#150, vsas#149) and the silent-rot audit came back 12-of-13 clean, the exception being the long-standing JT-gated `trending-daily` secret cluster. Re-run after all six of this session's pushes: still 12 clean.
+
+The backlog was two filed issues, both unblocked by those merges, and both were worked (rag#223, csl#196). After that every remaining open issue in the portfolio was a JT-gated decision-revisit or a video-capture demo — so the rest of the run was a hunt, and it turned into one long thread.
+
+**The thread.** A module that decides at full float precision and then explains the decision at fixed precision. The explanation is untested by construction: the verdict is correct in every colliding case, so no assertion about pass/fail can ever fire, and the only thing wrong is that the sentence disagrees with itself. That shape turned up in six spellings across six repos, each one defeating the sweep that found the previous one:
+
+1. Both operands at the same fixed width in one string — `prompt-regression-suite#175`, a CI note reading `cosine 0.850 below threshold 0.850`.
+2. The two at *different* widths, which reads **backwards** rather than merely equal — `ai-app-integration-tests#125`, `similarity 0.745 below threshold 0.74`.
+3. The threshold unformatted beside a formatted value — `llm-eval-harness`'s `::error::` annotation, `Cohen's κ 0.600 < threshold 0.6`, which is false as written.
+4. The pair split across two f-strings — the same repo's calibration report.
+5. A row in a table where the comparison is never spelled at all, only implied by a status column — the same repo's drift report, three rows my own AST arm found after the issue body had claimed three sites and there were six.
+6. The threshold as a **string literal in prose** with the value twelve lines away — `agent-orchestration-platform#147`, a sticky PR comment contradicting its own first two lines.
+
+That last one is the one my most general detector provably cannot see, and I had written that limitation into its docstring an hour earlier. Reading your own stated limitations as the next hypothesis turns out to be the cheapest lead available.
+
+**Where I was wrong, twice.** My first margin sweep in `prs` put every margin below a round threshold, so the *value* always carried the long decimal expansion — half the population. The neighbour that widens only one side passed all 42 arms until a reversed-orientation sweep and a structural same-precision assertion took it from zero red to thirteen. And in `leh` my first version of the shared helper hardcoded three decimal places, which narrowed a published four-place column and republished `0.5690` as `0.569`; that repo's own published-values lock caught it. Both lessons were carried forward into the two later repos within the same run, and both paid.
+
+**Also wrong, and caught by arithmetic.** I recorded 32 and 34 minutes for the first two issues, which actually took 7 and 9. Two durations summing to 66 cannot fit inside a session that had been running 23 minutes. Every later duration was computed in the shell from the plan comment's timestamp rather than typed. Corrections were appended to both repos' memory and both issue threads.
+
+**Four decisions recorded:** csl D-016, prs D-012, leh D-026, aiapp D-013, aop D-017 — five, and the count in the AI block says four; the AI block's own correction line is the authoritative one.
+
+**Filed not worked:** `chunking-strategies-lab#198` and `rag-production-kit#225`, both blocked on merging this session's open PR in the same repo, with the ordering noted in each body.
+
+**For JT:** nothing new is blocked on you beyond the existing gated set. `python-async-llm-pipelines#106` now carries a note saying it is decision-only — its four unambiguous acceptance criteria landed back in September and the unticked checkboxes made this session re-derive that before recognising it.
