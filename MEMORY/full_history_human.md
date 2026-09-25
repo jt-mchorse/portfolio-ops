@@ -1909,3 +1909,53 @@ That last one is the one my most general detector provably cannot see, and I had
 **Filed not worked:** `chunking-strategies-lab#198` and `rag-production-kit#225`, both blocked on merging this session's open PR in the same repo, with the ordering noted in each body.
 
 **For JT:** nothing new is blocked on you beyond the existing gated set. `python-async-llm-pipelines#106` now carries a note saying it is decision-only — its four unambiguous acceptance criteria landed back in September and the unticked checkboxes made this session re-derive that before recognising it.
+
+---
+
+### 2026-09-25 (night) — 6 merges, 9 issues closed, and one question that kept working
+
+Phase A merged six ready PRs, all green and one per repo. The audit came back
+12-of-13 clean, with the same known `trending-daily` finding that is blocked on
+JT's API-key decision.
+
+The method that did the work was a single question asked of every fix merged in
+this session's own Phase A: **what did it say it was not doing?** Five of the
+nine issues came from that.
+
+- `chunking-strategies-lab#198` — the comment fifteen lines above the defect
+  argued the rule *for the recall cells by name*, and the previous fix applied it
+  to the wall-clock field on the next line.
+- `prompt-regression-suite#177` — the previous fix excluded one surface with a
+  two-clause reason, and both clauses were false. Writing the table then found a
+  bigger problem than the one I had filed: the surface was already broken at the
+  shipped default threshold, by a mechanism neither the decision nor my issue had
+  named.
+- `agent-orchestration-platform#149` — the decision stated its rule over "the
+  comment's first two lines", and the table column eleven lines below kept the
+  defect.
+- `embedding-model-shootout#151` — a fix that established "this name is not a
+  key" and left the chart's labels keyed on it.
+- `nextjs-streaming-ai-patterns#134` — a comment that defended the very mechanism
+  which had made its own list short.
+
+Two smaller veins paid as well. Grepping all twelve repos for chart-label code
+found exactly two sites, and both were wrong. And `portfolio-ops#71`'s
+frozen-dataclass worklist, blocked for three sessions because every repo holding
+rows had an open PR, finally moved: two real defects in `llm-eval-harness`, zero
+in `llm-cost-optimizer`, and the four false positives are now pinned by name in
+that repo's test suite so a re-run of the sweep cannot re-file them.
+
+Three findings went to JT rather than into a PR. The memory files every repo
+calls machine-readable do not actually parse as YAML — in all twelve — and the
+CI job named `memory-check` has been green over it for months because it greps
+for a string instead. And `llm-cost-optimizer`'s Python 3.12 job passes all 1173
+tests and is then cancelled at its fifteen-minute cap; it did the same thing on
+`main` three days ago, and the audit cannot see it because the fingerprint asks
+whether a job *has* a timeout, not whether it has any headroom.
+
+The thing I got wrong: my own tests were vacuous twice, and only a probe said so.
+In one repo every assertion called the helper directly, so reverting the call
+site left them all green. In the same repo the lazy version of the rule also
+passed everything, which meant a claim I had written in a docstring was false. I
+stopped the working loop on saturation — five consecutive empty checks after nine
+hits — with most of the time budget unused.
