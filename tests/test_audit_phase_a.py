@@ -1324,3 +1324,382 @@ def test_paired_failure_and_phantom_ci_use_the_default_branch(audit_module):
             f"{fn.__name__} does not resolve the default branch"
         )
         assert "branch=main" not in src, f"{fn.__name__} still hardcodes branch=main"
+
+
+# ----------------------------------------------------------------------
+# timeout-headroom (#76)
+# ----------------------------------------------------------------------
+
+_WORKFLOW_MATRIX_CAP = """\
+name: ci
+on: [push]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: echo lint
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - run: echo test
+"""
+
+
+def _headroom_responses(workflow_yaml: str, runs: list[dict], jobs_by_run: dict[int, list[dict]]):
+    """Build a stub for the five endpoints `check_timeout_headroom` walks.
+
+    The per-run `/jobs` keys go in **first**: the stub matches by substring and
+    `actions/runs/101/jobs` also contains `actions/runs`, so a runs-list key
+    placed earlier would swallow every jobs fetch.
+    """
+    responses: dict[str, dict] = {}
+    for run_id, jobs in jobs_by_run.items():
+        responses[f"actions/runs/{run_id}/jobs"] = {"jobs": jobs}
+    responses["actions/workflows"] = {
+        "workflows": [
+            {"id": 1, "name": "ci", "path": ".github/workflows/ci.yml", "state": "active"}
+        ]
+    }
+    responses["contents/.github/workflows/ci.yml"] = {"content": _b64(workflow_yaml)}
+    responses["actions/runs?"] = {"workflow_runs": runs}
+    responses["/repos/jt-mchorse/anyrepo"] = {"default_branch": "main"}
+    return responses
+
+
+def _headroom_run(run_id: int) -> dict:
+    return {
+        "id": run_id,
+        "path": ".github/workflows/ci.yml",
+        "status": "completed",
+        "html_url": f"https://example.invalid/{run_id}",
+        # `audit_repo` runs eight other checks over the same stub; several
+        # index fields this one does not read.
+        "head_sha": f"{run_id:040d}",
+        "name": "ci",
+        "workflow_id": 1,
+        "conclusion": "success",
+    }
+
+
+def _headroom_job(name: str, minutes: int, seconds: int = 0, conclusion: str = "success") -> dict:
+    end_m, end_s = divmod(minutes * 60 + seconds, 60)
+    return {
+        "name": name,
+        "conclusion": conclusion,
+        "started_at": "2026-09-28T07:00:00Z",
+        "completed_at": f"2026-09-28T07:{end_m:02d}:{end_s:02d}Z",
+    }
+
+
+# --- the resolver: the unit is the RUNTIME job ------------------------------
+
+
+@pytest.mark.parametrize(
+    ("runtime_name", "expected"),
+    [
+        ("test", ("test", 15)),
+        ("test (3.12)", ("test", 15)),
+        ("test (3.11, ubuntu-latest)", ("test", 15)),
+        ("lint", ("lint", 15)),
+        ("Unit tests", ("Unit tests", 20)),
+        ("Unit tests (3.12)", ("Unit tests", 20)),
+        ("deploy", None),
+        ("test 3.12", None),
+        ("", None),
+    ],
+)
+def test_resolve_job_timeout_maps_runtime_names_back_to_their_cap(
+    audit_module, runtime_name, expected
+):
+    """A matrix expands one YAML block into N runtime jobs, and a runtime job is
+    what gets cancelled — so the cap has to be resolved in that direction.
+
+    `test 3.12` is the deliberate `None`: that is what a `name:` interpolating
+    matrix values renders to, and it is not invertible from the file.
+    """
+    labels = {"test": 15, "lint": 15, "Unit tests": 20}
+    assert audit_module.resolve_job_timeout(runtime_name, labels) == expected
+
+
+def test_declared_job_timeouts_drops_what_it_cannot_take_a_ratio_against(audit_module):
+    """A cap that is not a positive int, and a `name:` that is an expression.
+
+    Both are dropped rather than guessed at. A wrong label is worse than a
+    missing one: it would attach a duration to some other job's cap.
+    """
+    import yaml
+
+    parsed = yaml.safe_load(
+        """\
+jobs:
+  ok:
+    timeout-minutes: 10
+  named:
+    name: Friendly
+    timeout-minutes: 12
+  expression_name:
+    name: test ${{ matrix.python-version }}
+    timeout-minutes: 14
+  expression_cap:
+    timeout-minutes: ${{ vars.CAP }}
+  boolean_cap:
+    timeout-minutes: true
+  zero_cap:
+    timeout-minutes: 0
+  no_cap:
+    runs-on: ubuntu-latest
+"""
+    )
+    labels = audit_module._declared_job_timeouts(parsed)
+    assert labels == {"ok": 10, "named": 12, "Friendly": 12, "expression_name": 14}
+
+
+# --- the fingerprint ---------------------------------------------------------
+
+
+def test_check_timeout_headroom_flags_a_job_pinned_at_its_cap(audit_module):
+    """The measured `llm-cost-optimizer` shape: one matrix leg near the cap, one not.
+
+    `test (3.11)` at 10m54s is 0.73 of a 15m cap and must stay silent;
+    `test (3.12)` at 14m05s is 0.94 and must fire. A rule that flagged the whole
+    `test:` block would report both, which is the wrong unit.
+    """
+    runs = [_headroom_run(101)]
+    jobs = {
+        101: [
+            _headroom_job("lint", 0, 18),
+            _headroom_job("test (3.11)", 10, 54),
+            _headroom_job("test (3.12)", 14, 5),
+        ]
+    }
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_timeout_headroom("anyrepo", token=None)
+    assert [f["job_name"] for f in findings] == ["test (3.12)"]
+    assert findings[0]["kind"] == "timeout-headroom"
+    assert findings[0]["timeout_minutes"] == 15
+    assert findings[0]["worst_seconds"] == 845
+    assert findings[0]["ratio"] == pytest.approx(0.939, abs=0.001)
+    assert findings[0]["runs_inspected"] == 1
+
+
+def test_check_timeout_headroom_is_clean_when_every_job_has_room(audit_module):
+    runs = [_headroom_run(101)]
+    jobs = {101: [_headroom_job("lint", 0, 18), _headroom_job("test (3.11)", 5, 0), _headroom_job("test (3.12)", 9, 0)]}
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_timeout_headroom("anyrepo", token=None) == []
+
+
+def test_check_timeout_headroom_reports_the_worst_run_not_the_newest(audit_module):
+    """The harm is a job that is *routinely* near the ceiling, and the newest run
+    can be the fast one.
+
+    Measured: `llm-cost-optimizer`'s `test (3.12)` went 15m05s (cancelled) on
+    2026-09-22 and 10m48s on 2026-09-23. Reporting the newest would have called
+    that repo clean the day after it was cancelled.
+    """
+    runs = [_headroom_run(103), _headroom_run(102), _headroom_run(101)]
+    jobs = {
+        103: [_headroom_job("test (3.12)", 10, 48)],
+        102: [_headroom_job("test (3.12)", 15, 5, conclusion="cancelled")],
+        101: [_headroom_job("test (3.12)", 13, 12)],
+    }
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_timeout_headroom("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["worst_seconds"] == 905
+    assert findings[0]["conclusion"] == "cancelled"
+    assert findings[0]["run_url"] == "https://example.invalid/102"
+    assert findings[0]["runs_inspected"] == 3
+
+
+def test_a_concurrency_cancelled_run_does_not_trip_the_check(audit_module):
+    """The coexistence arm for `missing-concurrency` (#40).
+
+    That fingerprint pushes every repo toward `cancel-in-progress: true`, whose
+    superseded runs are `cancelled` with a *short* duration. Keying on the
+    conclusion would flag exactly the behaviour its sibling asks for; keying on
+    the ratio excludes them by construction.
+    """
+    runs = [_headroom_run(101)]
+    jobs = {101: [_headroom_job("test (3.12)", 0, 12, conclusion="cancelled")]}
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_timeout_headroom("anyrepo", token=None) == []
+
+
+def test_the_fraction_boundary_is_inclusive(audit_module):
+    """Exactly at the fraction is a finding; a hair under is not.
+
+    Stated because the alternative reading (`>` rather than `>=`) is a silent
+    one-run-wide hole, and because the threshold is the only number in this
+    fingerprint that is a judgement call.
+    """
+    runs = [_headroom_run(101)]
+    at = {101: [_headroom_job("test (3.12)", 12, 0)]}  # 720s / 900s == 0.80 exactly
+    under = {101: [_headroom_job("test (3.12)", 11, 59)]}
+    for jobs, expected in ((at, 1), (under, 0)):
+        responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+        with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+            findings = audit_module.check_timeout_headroom("anyrepo", token=None)
+        assert len(findings) == expected, f"{jobs} gave {findings}"
+
+
+def test_an_unresolvable_matrix_name_is_counted_not_guessed(audit_module):
+    """A resolver that resolves nothing must not look like a clean repo.
+
+    This is the non-vacuity half: `check_timeout_headroom` produces no finding
+    for an unresolved job — guessing would attach a duration to the wrong cap —
+    so the count rides along on every finding the workflow *does* produce, and
+    `format_finding` prints it.
+    """
+    runs = [_headroom_run(101)]
+    jobs = {
+        101: [
+            _headroom_job("test (3.12)", 14, 30),
+            _headroom_job("test 3.11", 14, 30),  # a `name:` expression rendering — unresolvable
+        ]
+    }
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.check_timeout_headroom("anyrepo", token=None)
+    assert len(findings) == 1
+    assert findings[0]["unresolved_jobs"] == ["test 3.11"]
+    rendered = audit_module.format_finding(findings[0])
+    assert "could not" in rendered and "test 3.11" in rendered
+
+
+def test_a_job_with_no_declared_cap_is_missing_timeouts_finding_not_this_ones(audit_module):
+    """Disjoint from fingerprint 5 by construction.
+
+    One repo reported twice under two kinds makes the summary harder to act on,
+    and the remedies differ: `missing-timeout` says "add a cap", this one says
+    "the cap you have is used up".
+    """
+    workflow = """\
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo test
+"""
+    runs = [_headroom_run(101)]
+    jobs = {101: [_headroom_job("test", 300, 0)]}
+    responses = _headroom_responses(workflow, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_timeout_headroom("anyrepo", token=None) == []
+        assert audit_module.check_missing_timeout("anyrepo", token=None) != []
+
+
+def test_check_timeout_headroom_skips_in_progress_runs(audit_module):
+    """Phase A runs while pushes may be in flight — same scoping as `main-branch-red`."""
+    runs = [{**_headroom_run(101), "status": "in_progress"}]
+    jobs = {101: [_headroom_job("test (3.12)", 14, 30)]}
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_timeout_headroom("anyrepo", token=None) == []
+
+
+def test_check_timeout_headroom_honors_the_window(audit_module):
+    """Only the newest `window` completed runs per workflow are fetched.
+
+    Each costs a `/jobs` call, so the window is the check's API budget. The old
+    slow run below is outside a window of 1 and must not be reported.
+    """
+    runs = [_headroom_run(102), _headroom_run(101)]
+    jobs = {102: [_headroom_job("test (3.12)", 5, 0)], 101: [_headroom_job("test (3.12)", 14, 30)]}
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        assert audit_module.check_timeout_headroom("anyrepo", token=None, window=1) == []
+        assert audit_module.check_timeout_headroom("anyrepo", token=None, window=2) != []
+
+
+def test_check_timeout_headroom_skips_when_pyyaml_missing(audit_module, capsys):
+    """Same graceful degradation as the other two yaml-dependent checks."""
+    with patch.dict(sys.modules, {"yaml": None}):
+        findings = audit_module.check_timeout_headroom("anyrepo", token=None)
+    assert findings == []
+    assert "skipping timeout-headroom" in capsys.readouterr().err
+
+
+def test_format_finding_renders_timeout_headroom(audit_module):
+    rendered = audit_module.format_finding(
+        {
+            "kind": "timeout-headroom",
+            "repo": "llm-cost-optimizer",
+            "branch": "main",
+            "workflow_path": ".github/workflows/ci.yml",
+            "job_name": "test (3.12)",
+            "timeout_minutes": 15,
+            "worst_seconds": 910,
+            "ratio": 1.011,
+            "conclusion": "cancelled",
+            "runs_inspected": 5,
+            "unresolved_jobs": [],
+            "run_url": "https://example.invalid/1",
+        }
+    )
+    assert "[timeout-headroom] llm-cost-optimizer" in rendered
+    assert "'test (3.12)'" in rendered
+    assert "15m10s" in rendered
+    assert "101% of its 15m cap" in rendered
+    assert "cancelled" in rendered
+
+
+# --- the module's own count, which was wrong before this change --------------
+
+
+def test_the_docstring_lists_every_wired_check(audit_module):
+    """The header said "seven" while `audit_repo` had run eight since #69.
+
+    `main-branch-red` was wired in without being added to the list — a prose
+    count beside a literal that nobody compared, which is the shape this script
+    exists to catch, in this script's own docstring. Comparing the two is the
+    only thing that can notice a tenth fingerprint landing the same way.
+    """
+    import inspect
+    import re
+
+    source = inspect.getsource(audit_module.audit_repo)
+    wired = set(re.findall(r"findings\.extend\(check_(\w+)\(", source))
+    kinds = {name.replace("_", "-") for name in wired}
+
+    doc = audit_module.__doc__ or ""
+    header = doc.split("Mostly stdlib")[0]
+    listed = set(re.findall(r"^\s*\d+\.\s+([a-z-]+)\s+—", header, re.MULTILINE))
+
+    assert kinds == listed, (
+        f"audit_repo runs {sorted(kinds)} and the docstring lists {sorted(listed)}. "
+        f"A fingerprint wired in without a docstring entry is how this file came "
+        f"to claim seven while running eight (#76)."
+    )
+    count_words = {7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven"}
+    assert f"Catches {count_words[len(kinds)]} silent-rot fingerprints" in doc, (
+        f"the docstring's opening count does not match the {len(kinds)} wired checks"
+    )
+
+
+def test_audit_repo_emits_timeout_headroom(audit_module):
+    """The wiring, pinned by behaviour rather than by the docstring alone.
+
+    Every other arm in this section calls `check_timeout_headroom` directly, so
+    unwiring it from `audit_repo` leaves them all green — the shape that made
+    `llm-cost-optimizer#227`'s arms vacuous against a call-site revert. This one
+    goes through `audit_repo`, so the fingerprint cannot be silently dropped
+    from the Phase A loop.
+    """
+    runs = [_headroom_run(101)]
+    jobs = {101: [_headroom_job("test (3.12)", 14, 30)]}
+    responses = _headroom_responses(_WORKFLOW_MATRIX_CAP, runs, jobs)
+    with patch("urllib.request.urlopen", side_effect=_make_urlopen_stub(responses)):
+        findings = audit_module.audit_repo("anyrepo", token=None)
+    assert "timeout-headroom" in {f["kind"] for f in findings}
