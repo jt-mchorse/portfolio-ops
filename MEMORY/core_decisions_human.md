@@ -154,3 +154,87 @@ field's reason for existing. (3) Quote only the items that need it — see above
 **Reversibility.** Cheap. It is a writing convention plus a ratchet;
 `scripts/check_memory_yaml.py --write-baseline` re-freezes the counts if the
 retro-fix decision goes the other way.
+
+## D-011 — A ninth audit fingerprint: timeout headroom (2026-09-28)
+
+**Decision:** `scripts/audit_phase_a.py` gains `timeout-headroom`, which flags a
+*runtime* job whose worst of the newest five completed push runs on the default
+branch consumed at least 80% of the `timeout-minutes` its own YAML job declares.
+
+**Why:** `missing-timeout` (D-005's fingerprint 5) asks whether a job *has* a
+cap. It never asks whether the cap has any room left, so a job sitting at 99% of
+it audits clean every session until the day it crosses — which is the silent-rot
+shape this whole script exists for.
+
+`llm-cost-optimizer`'s `test (3.12)` against its 15-minute cap, measured over the
+ten newest push runs on `main` before any code was written:
+
+| date | duration | ratio | result |
+|---|---|---|---|
+| 09-28 | 15m10s | 1.01 | **cancelled** |
+| 09-23 | 10m48s | 0.72 | success |
+| 09-22 | 15m05s | 1.00 | **cancelled** |
+| 09-21 | 14m05s | 0.94 | success |
+| 09-14 | 13m12s | 0.88 | success |
+| 09-11 | 10m48s | 0.72 | success |
+| 09-10 | 13m17s | 0.89 | success |
+| 09-09 | 13m10s | 0.88 | success |
+| 09-08 | 14m32s | 0.97 | success |
+| 09-07 | 13m22s | 0.89 | success |
+
+The ratio is at or above 0.88 in eight of ten, so the finding does not depend on
+which run happens to land in the window. `main-branch-red` reports the two
+cancellations after the fact; this one fires on the rows above them. The 09-28
+cancellation was caused by this session's own Phase A merge.
+
+**The unit is the runtime job, not the YAML job.** A matrix expands one block
+into N runtime jobs, and a runtime job is what gets cancelled. `llm-cost-optimizer`
+has one `test:` block at 15 minutes that becomes `test (3.11)` and `test (3.12)`,
+and only one of the two is anywhere near the cap — 10m54s against 15m10s in the
+same run. A rule keyed on the YAML job reports both.
+
+**It is keyed on the ratio, not on the conclusion**, and that is what lets it
+coexist with `missing-concurrency`. That fingerprint pushes every repo toward
+`cancel-in-progress: true`, whose superseded runs are `cancelled` with a *short*
+duration — so a conclusion-keyed rule would flag exactly the behaviour its
+sibling asks for. The honest residue is that a superseded run cancelled at 14 of
+15 minutes still trips, because from the outside it is indistinguishable from a
+job that nearly timed out. That is written into the docstring rather than left to
+read as a bug later.
+
+**A runtime name that cannot be resolved is counted, not guessed.** A `name:`
+interpolating matrix values renders to something the default suffix rule cannot
+invert. A wrong label is worse than a missing one: it would attach a duration to
+some other job's cap.
+
+**The module docstring already said "seven" while `audit_repo` ran eight.**
+`main-branch-red` was wired in for #69 without being added to the numbered list —
+a prose count beside a literal that nobody compared, which is the
+fingerprint-shaped defect this module exists to catch, in its own docstring. Both
+are now listed, and a new test *derives* the two sets and compares them, so a
+tenth landing the same way fails immediately.
+
+**Alternatives considered:**
+- *Flag on the conclusion* — rejected, built and run, 5 red.
+- *Report the newest run rather than the worst* — rejected, built and run, 2 red.
+  `llm-cost-optimizer` went 15m05s cancelled on 09-22 and 10m48s on 09-23, so the
+  newest would have called it clean the day after.
+- *Key on the YAML job* — rejected, built and run, 8 red.
+- *Guess a label for an unresolvable matrix name* — rejected.
+- *Raise `llm-cost-optimizer`'s cap in this PR* — deferred to that repo's own
+  issue and PR, as the issue's own "Proposed" section splits it.
+
+**On the 3.11 vs 3.12 divergence:** recorded as **unexplained with the
+measurement attached**, which is the honest branch of #76's fourth criterion.
+3.12 is slower in 6 of 6 paired runs — a sign test gives p ≈ 0.031, so the
+direction is real — but the magnitude ranges from 5 seconds (09-23) to 8m45s
+(09-21) on comparable trees. Runner variance dominates; a systematic component
+cannot be sized from six points.
+
+**Swept once across all 13 repos: one finding.** `llm-eval-harness` (a four-way
+matrix) and `agent-orchestration-platform` (Postgres integration) were the
+issue's named plausible neighbours and both came back clean.
+
+**Reversibility:** Cheap.
+
+**Related issues:** #76, #35, #40, #69
