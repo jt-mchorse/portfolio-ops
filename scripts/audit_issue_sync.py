@@ -59,6 +59,12 @@ from typing import Any, Iterable
 #:   missing-timeout  jobs_missing          (a job list that shifts as a
 #:                                           workflow is edited, while the
 #:                                           workflow is still the finding)
+#:   timeout-headroom worst_seconds, ratio, conclusion, run_url, runs_inspected
+#:                                          (every one of those moves on every
+#:                                           push; the finding is "this job has
+#:                                           no room left in its cap", which is
+#:                                           named by the job, not by how close
+#:                                           it got this week)
 IDENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "main-branch-red": ("repo", "branch", "workflow_path"),
     "missing-concurrency": ("repo", "workflow_path"),
@@ -67,6 +73,7 @@ IDENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "phantom-ci": ("repo", "workflow_id"),
     "stale-schedule": ("repo", "workflow_path"),
     "stuck-registration": ("repo", "workflow_id", "path"),
+    "timeout-headroom": ("repo", "workflow_path", "job_name"),
     "unpinned-lint-config": ("repo", "path"),
 }
 

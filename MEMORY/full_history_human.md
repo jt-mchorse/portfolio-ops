@@ -1959,3 +1959,28 @@ site left them all green. In the same repo the lazy version of the rule also
 passed everything, which meant a claim I had written in a docstring was false. I
 stopped the working loop on saturation — five consecutive empty checks after nine
 hits — with most of the time budget unused.
+
+## 2026-09-28 — Issue #76: a ninth audit fingerprint
+**Duration:** ~22 min · **Branch:** `session/2026-09-28-0813-issue-76`
+
+- Added `timeout-headroom`. `missing-timeout` asks whether a job *has* a cap and
+  never whether the cap has room left, so a job at 99% of it audits clean every
+  session until the day it crosses. `llm-cost-optimizer`'s `test (3.12)` was at or
+  above 88% of its cap in eight of the ten newest runs and has been cancelled twice.
+- The unit is the *runtime* job, not the YAML job, and the rule is keyed on the
+  ratio rather than the conclusion — the second of those is what keeps it from
+  flagging the `cancel-in-progress` behaviour its sibling `missing-concurrency`
+  asks every repo to adopt.
+- The module docstring said "seven" while `audit_repo` had run eight since #69.
+  A prose count beside a literal nobody compared, in the file whose job is
+  catching exactly that. A new test derives both sets and compares them.
+- Swept all 13 repos once: one finding.
+
+**Why this work, this session:** the premise fired again during this session's own
+Phase A, when merging `llm-cost-optimizer#228` cancelled that repo's `test (3.12)`.
+
+**Open questions / blockers:** none. The cap change is `llm-cost-optimizer#229`,
+whose acceptance criterion is that this fingerprint reports that repo clean — so
+the two changes check each other.
+
+**Next session:** merge both, then confirm the fingerprint goes quiet.

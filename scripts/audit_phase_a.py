@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """Phase A operational-health audit.
 
-Catches seven silent-rot fingerprints across the 13 portfolio repos:
+Catches nine silent-rot fingerprints across the 13 portfolio repos:
+
+The count in this line was **wrong before #76 touched it**: it said "seven"
+while `audit_repo` had run eight since #69, because `main-branch-red` was wired
+in without being added to this list. That is the fingerprint-shaped defect this
+module exists to catch, in this module's own docstring — a prose count beside a
+literal that nobody compared. Both are now listed, and
+`tests/test_audit_phase_a.py::test_the_docstring_lists_every_wired_check`
+compares the two rather than trusting either.
 
 1. paired-failure  — a single push-event SHA produces multiple workflow runs
                      with conflicting conclusions (one success + one failure).
@@ -44,6 +52,20 @@ Catches seven silent-rot fingerprints across the 13 portfolio repos:
                          `mcp-server-cookbook` audited clean every session
                          while sitting one push away from 8 lint errors
                          (#63; fixed in mcp-server-cookbook#132/#133).
+8. main-branch-red — a workflow whose newest *completed* push run on the
+                     default branch failed. Closes the gap the 2026-07-31 ruff
+                     break went through: six repos went red with zero repo-side
+                     changes and the next Phase A reported every repo clean
+                     (#69).
+9. timeout-headroom — a job whose worst recent run consumed `>= FRACTION` of
+                     its own `timeout-minutes`. `missing-timeout` (5) asks
+                     whether a job *has* a cap; it never asks whether the cap
+                     has any room left, so a job sitting at 99% of it audits
+                     clean every session until the day it crosses. That is not
+                     hypothetical: `llm-cost-optimizer`'s `test (3.12)` was
+                     cancelled on `main` at 15m05s against a 15-minute cap on
+                     2026-09-22 and again at 15m10s on 2026-09-28, and Phase A
+                     reported the repo clean in between (#76).
 
 Mostly stdlib (urllib.request + json). The missing-timeout and
 missing-concurrency fingerprints are the two exceptions — both
@@ -90,6 +112,8 @@ session-runner/SESSION_PROMPT.md as a non-blocking pre-check.
 from __future__ import annotations
 
 import argparse
+import base64
+import datetime
 import json
 import os
 import sys
@@ -576,6 +600,242 @@ def check_main_branch_red(repo: str, token: str | None) -> list[dict]:
     return findings
 
 
+#: A job whose worst recent run consumed at least this fraction of its own
+#: `timeout-minutes` has no meaningful headroom left. 0.8 rather than 1.0
+#: because the point of the fingerprint is to fire *before* the cancellation:
+#: `llm-cost-optimizer`'s `test (3.12)` sat at 0.88 / 0.94 for two sessions
+#: before crossing, and both of those sessions audited clean.
+HEADROOM_FRACTION = 0.8
+
+#: Completed push runs inspected per workflow. Each one costs a `/jobs` fetch,
+#: so this is the knob that decides the check's API budget: roughly
+#: `repos x workflows x HEADROOM_WINDOW` extra calls per audit. Five is enough
+#: to see a job pinned at its cap -- the harm is a job that is *routinely* near
+#: the ceiling, not one that spiked once.
+HEADROOM_WINDOW = 5
+
+
+def _declared_job_timeouts(parsed: Any) -> dict[str, int]:
+    """Map every label a runtime job could carry to the `timeout-minutes` it declares.
+
+    Two labels per YAML job: its **id**, and its `name:` when that is a plain
+    string. A `name:` containing a `${{ }}` expression is deliberately dropped
+    rather than guessed at -- the rendered value is not derivable from the file,
+    and a wrong label is worse than a missing one because it would attach a
+    duration to the wrong cap.
+
+    A non-integer `timeout-minutes` (an expression, a string) is skipped for the
+    same reason: there is no number to take a ratio against.
+    """
+    jobs = parsed.get("jobs") if isinstance(parsed, dict) else None
+    if not isinstance(jobs, dict):
+        return {}
+    labels: dict[str, int] = {}
+    for job_id, body in jobs.items():
+        if not isinstance(body, dict):
+            continue
+        timeout = body.get("timeout-minutes")
+        # `bool` is an `int` subclass and `timeout-minutes: true` is not a cap.
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
+            continue
+        labels[str(job_id)] = timeout
+        name = body.get("name")
+        if isinstance(name, str) and "${{" not in name:
+            labels[name] = timeout
+    return labels
+
+
+def resolve_job_timeout(runtime_name: str, labels: dict[str, int]) -> tuple[str, int] | None:
+    """Resolve a *runtime* job name back to the YAML job whose cap applies.
+
+    **The unit is the runtime job, not the YAML job**, because a matrix expands
+    one YAML block into N runtime jobs and it is a runtime job that gets
+    cancelled. `llm-cost-optimizer` is the case in front: one `test:` block with
+    `timeout-minutes: 15` becomes `test (3.11)` and `test (3.12)`, and only one
+    of the two is anywhere near the cap.
+
+    Two rules, in order:
+
+    1. An exact match on a label (a job with no matrix, or one whose `name:` is
+       a literal).
+    2. GitHub's default matrix rendering, ``"<label> (<values>)"``.
+
+    Returns ``None`` when neither applies -- a job whose `name:` interpolates
+    matrix values renders to something this cannot invert, and the honest
+    answer is "unresolved", not a guess. Callers must count those rather than
+    discard them silently; `check_timeout_headroom` reports the count on every
+    finding and `test_an_unresolvable_matrix_name_is_counted_not_guessed`
+    asserts it.
+    """
+    if runtime_name in labels:
+        return runtime_name, labels[runtime_name]
+    if runtime_name.endswith(")") and " (" in runtime_name:
+        base = runtime_name[: runtime_name.rindex(" (")]
+        if base in labels:
+            return base, labels[base]
+    return None
+
+
+def _job_duration_seconds(job: dict) -> float | None:
+    started, completed = job.get("started_at"), job.get("completed_at")
+    if not isinstance(started, str) or not isinstance(completed, str):
+        return None
+    try:
+        start = datetime.datetime.strptime(started, "%Y-%m-%dT%H:%M:%SZ")
+        end = datetime.datetime.strptime(completed, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+    seconds = (end - start).total_seconds()
+    return seconds if seconds >= 0 else None
+
+
+def check_timeout_headroom(
+    repo: str,
+    token: str | None,
+    *,
+    fraction: float = HEADROOM_FRACTION,
+    window: int = HEADROOM_WINDOW,
+) -> list[dict]:
+    """Flag jobs whose worst recent run consumed most of their own `timeout-minutes`.
+
+    The sibling `missing-timeout` (#35) asks whether a job **has** a cap. It
+    never asks whether the cap has any room left, so a job sitting at 99% of it
+    audits clean every session until the day it crosses -- which is the
+    silent-rot shape this whole script exists for. Measured, on
+    `llm-cost-optimizer`'s `test (3.12)` against its 15-minute cap:
+
+        2026-09-14  13m12s  0.88  success   <- audited clean
+        2026-09-21  14m05s  0.94  success   <- audited clean
+        2026-09-22  15m05s  1.01  CANCELLED
+        2026-09-23  10m48s  0.72  success
+        2026-09-28  15m10s  1.01  CANCELLED
+
+    `main-branch-red` (#69) would report the two cancellations *after* the fact.
+    This one fires on the two rows above them.
+
+    **Keyed on the ratio, not on the conclusion**, and that is what makes it
+    coexist with `missing-concurrency` (#40). That fingerprint pushes every repo
+    toward `cancel-in-progress: true`, whose superseded runs are `cancelled`
+    with a *short* duration -- so a conclusion-keyed rule would flag exactly the
+    behaviour its sibling asks for, while the ratio excludes them by
+    construction. The residue is honest and small: a superseded run cancelled at
+    14 of 15 minutes still trips, because from the outside it is indistinguishable
+    from a job that nearly timed out. Said here rather than left to read as a bug.
+
+    Scoped like its siblings: `event=push` on the default branch, completed runs
+    only. A job with no resolvable cap produces no finding -- see
+    :func:`resolve_job_timeout` -- and the count of those is carried on every
+    finding so a matcher that resolves nothing cannot look like a clean repo.
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
+        print(
+            f"skipping timeout-headroom for {repo}: pyyaml not installed",
+            file=sys.stderr,
+        )
+        return []
+
+    # Caps come from the workflow files; durations come from run history. Both
+    # are keyed on the workflow *path*, which is the one identifier that appears
+    # in both APIs.
+    caps_by_path: dict[str, dict[str, int]] = {}
+    workflows_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/actions/workflows", token)
+    for wf in workflows_data.get("workflows", []):
+        if wf.get("state") != "active":
+            continue
+        wf_path = wf.get("path", "")
+        try:
+            content_data = _gh_get(f"/repos/{REPO_OWNER}/{repo}/contents/{wf_path}", token)
+        except urllib.error.HTTPError:
+            continue
+        encoded = content_data.get("content", "")
+        if not encoded:
+            continue
+        try:
+            text = base64.b64decode(encoded).decode("utf-8")
+            parsed = yaml.safe_load(text)
+        except (ValueError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        labels = _declared_job_timeouts(parsed)
+        if labels:
+            caps_by_path[wf_path] = labels
+    if not caps_by_path:
+        return []
+
+    branch = _default_branch(repo, token)
+    try:
+        runs_data = _gh_get(
+            f"/repos/{REPO_OWNER}/{repo}/actions/runs"
+            f"?event=push&branch={branch}&per_page=50",
+            token,
+        )
+    except urllib.error.HTTPError:
+        return []
+
+    # `worst[(path, job_label)] = (ratio, seconds, cap, run_url, conclusion)`
+    worst: dict[tuple[str, str], tuple[float, float, int, str, str]] = {}
+    unresolved: dict[str, set[str]] = defaultdict(set)
+    seen_runs: dict[str, int] = defaultdict(int)
+    for run in runs_data.get("workflow_runs", []):
+        path = run.get("path") or ""
+        if path not in caps_by_path or run.get("status") != "completed":
+            continue
+        if seen_runs[path] >= window:
+            continue
+        seen_runs[path] += 1
+        try:
+            jobs_data = _gh_get(
+                f"/repos/{REPO_OWNER}/{repo}/actions/runs/{run.get('id')}/jobs", token
+            )
+        except urllib.error.HTTPError:
+            continue
+        for job in jobs_data.get("jobs", []):
+            name = job.get("name")
+            if not isinstance(name, str):
+                continue
+            resolved = resolve_job_timeout(name, caps_by_path[path])
+            if resolved is None:
+                unresolved[path].add(name)
+                continue
+            _, cap_minutes = resolved
+            seconds = _job_duration_seconds(job)
+            if seconds is None:
+                continue
+            ratio = seconds / (cap_minutes * 60)
+            key = (path, name)
+            if key not in worst or ratio > worst[key][0]:
+                worst[key] = (
+                    ratio,
+                    seconds,
+                    cap_minutes,
+                    run.get("html_url") or "",
+                    str(job.get("conclusion")),
+                )
+
+    findings: list[dict] = []
+    for (path, job_name), (ratio, seconds, cap, url, conclusion) in sorted(worst.items()):
+        if ratio < fraction:
+            continue
+        findings.append(
+            {
+                "kind": "timeout-headroom",
+                "repo": repo,
+                "branch": branch,
+                "workflow_path": path,
+                "job_name": job_name,
+                "timeout_minutes": cap,
+                "worst_seconds": round(seconds),
+                "ratio": round(ratio, 3),
+                "conclusion": conclusion,
+                "runs_inspected": seen_runs[path],
+                "unresolved_jobs": sorted(unresolved[path]),
+                "run_url": url,
+            }
+        )
+    return findings
+
+
 def check_unpinned_lint_config(repo: str, token: str | None) -> list[dict]:
     """Flag Python packages that use ruff without declaring its rule set.
 
@@ -652,6 +912,7 @@ def audit_repo(repo: str, token: str | None) -> list[dict]:
     findings.extend(check_missing_concurrency(repo, token))
     findings.extend(check_unpinned_lint_config(repo, token))
     findings.extend(check_main_branch_red(repo, token))
+    findings.extend(check_timeout_headroom(repo, token))
     return findings
 
 
@@ -696,6 +957,22 @@ def format_finding(f: dict) -> str:
         return (
             f"  [{kind}] {repo}: workflow {f['workflow_name']!r} "
             f"({f['workflow_path']}) has no top-level `concurrency:` group"
+        )
+    if kind == "timeout-headroom":
+        pct = f["ratio"] * 100
+        mins, secs = divmod(f["worst_seconds"], 60)
+        extra = (
+            f" — {len(f['unresolved_jobs'])} job name(s) in this workflow could not "
+            f"be matched to a declared cap: {', '.join(f['unresolved_jobs'])}"
+            if f["unresolved_jobs"]
+            else ""
+        )
+        return (
+            f"  [{kind}] {repo}: {f['workflow_path']} job {f['job_name']!r} worst of "
+            f"{f['runs_inspected']} recent {f['branch']} run(s) was {mins}m{secs:02d}s "
+            f"({pct:.0f}% of its {f['timeout_minutes']}m cap, {f['conclusion']})"
+            + (f" — {f['run_url']}" if f["run_url"] else "")
+            + extra
         )
     if kind == "unpinned-lint-config":
         return (

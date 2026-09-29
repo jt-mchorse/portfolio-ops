@@ -57,7 +57,7 @@ ALL_REPOS = PORTFOLIO_REPOS + (OPS_REPO,)
 # `scripts/audit_phase_a.py`. Order is the script's docstring order
 # (paired-failure, stuck-registration, stale-schedule, phantom-ci,
 # missing-timeout, missing-concurrency, unpinned-lint-config). When an
-# eighth fingerprint lands, add it here AND update the SESSION_PROMPT.md
+# tenth fingerprint lands, add it here AND update the SESSION_PROMPT.md
 # audit step's description text — this list is the bridge between them.
 #
 # `test_fingerprints_list_matches_the_script` below makes that bridge
@@ -75,6 +75,7 @@ FINGERPRINTS = (
     "missing-concurrency",
     "unpinned-lint-config",
     "main-branch-red",
+    "timeout-headroom",
 )
 
 # The audit step lives between the PR-review override note and the repo-pick
@@ -341,7 +342,7 @@ def test_fingerprints_list_matches_the_script() -> None:
     `check_<name>` function is a fingerprint, and its kind is the name with
     underscores swapped for hyphens.
 
-    So an eighth fingerprint fails here the moment it is wired up, naming
+    So a tenth fingerprint fails here the moment it is wired up, naming
     exactly what is missing, rather than silently never reaching the prompt.
     """
     import importlib.util

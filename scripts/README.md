@@ -7,7 +7,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 
 | Script | Purpose | Spec |
 |---|---|---|
-| `audit_phase_a.py` | Eight silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63, #69 |
+| `audit_phase_a.py` | Nine silent-rot fingerprints across the 13 portfolio repos. Used at the top of Phase A in every session and as the cron payload for `.github/workflows/audit-cron.yml`. | #19, extended in #21/#22, #32, #35, #41, #63, #69, #76 |
 | `audit_issue_sync.py` | Decides whether an audit finding set should **file** a new `[audit-cron]` issue, **comment** on the open one, or stay **silent**. Compares stable per-kind finding identities — excluding volatile fields like `consecutive_failures`, `sha` and `sample_shas` — against the machine-readable block the last run recorded on the issue. Replaces the presence-only skip that let one unclosable issue suppress every new finding for ~10 weeks. | #72 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
