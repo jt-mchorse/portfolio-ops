@@ -1984,3 +1984,68 @@ whose acceptance criterion is that this fingerprint reports that repo clean — 
 the two changes check each other.
 
 **Next session:** merge both, then confirm the fingerprint goes quiet.
+
+## 2026-09-29 — Night session: 7 merges, 8 issues closed across 7 repos (~158 min)
+
+**Phase A.** Seven ready PRs, all green with tests and separate MEMORY commits,
+all squash-merged: `llm-eval-harness`#258, `rag-production-kit`#228,
+`chunking-strategies-lab`#201, `portfolio-ops`#77, `llm-cost-optimizer`#230,
+`embedding-model-shootout`#154, `prompt-regression-suite`#180. The silent-rot
+audit was clean in 12 of 13 both before and after; the only finding is the known
+JT-gated `trending-daily` secret cluster (`#56`/`#17`).
+
+**The dominant method, for the fifth night running: read the scope the last fix
+wrote down.** Five of the eight came from it, and four came from PRs this run had
+merged an hour earlier.
+
+- `llm-eval-harness`#257 — D-028 named the site and said it was a different class.
+- `rag-production-kit`#229 — D-022 priced an exclusion at the loss of a
+  `namedtuple`'s class, and refuted itself fifteen lines later by observing that
+  the wire seam flattens every tuple anyway.
+- `chunking-strategies-lab`#202 — D-018 keyed its population on "is the annotation
+  a mutable container", which is not the property its own rationale describes.
+  Three validated fields were looked straight past.
+- `vector-search-at-scale`#152 — the two branches of one `if` rendered the same
+  flag by two rules, and the `else` branch's comment argues why the `if` branch's
+  is wrong.
+- `mcp-server-cookbook`#174 — `#173` counted the class at four payments while
+  fixing one file; the sibling had two more flat walks, and the arm it broke had
+  never inspected the module it is about.
+
+**One class, four repos, four remedies — and that is the result, not an
+inconsistency.** A configured parameter republished as a number nobody set:
+`llm-eval-harness` took one flag plus a standalone helper,
+`prompt-regression-suite` two because one site compares two configured numbers,
+`vector-search-at-scale` two composed with a pre-existing `render_exact` (the
+obvious local shortcut restores the older inversion), and
+`ai-app-integration-tests` two as an options object.
+
+**And my own D-029 scoping claim was falsified seventy minutes after I wrote it.**
+"There is deliberately no `exact_value`, because value is the measured side at all
+six call sites" was true of that repo and false in the next one. Don't promote a
+true statement about your current callers into a contract.
+
+**The worst process failure was a probe harness that reported 0 red for three real
+regressions** (`llm-eval-harness`#259). Two independent causes: this pytest prints
+`path: count` for `--collect-only -q` rather than ids, so the id list was empty and
+every probe looped zero times; and a *hanging* arm makes `pytest-timeout` abort the
+session with an `INTERNALERROR` and no `FAILED` lines, which a summary parser reads
+as clean. One subprocess per test id fixes both. The tell was a manual run
+disagreeing with the harness.
+
+**A partial revert is not a revert** — three times today. And **my sweep filtered a
+whole repo out by its own name**: `grep -v test` over full paths reported
+`ai-app-integration-tests` as having zero `renderComparison` sites, because `test`
+is in the repo name. I recorded it clean; it had the defect. A silent zero looks
+exactly like a clean repo.
+
+**Four repos came back genuinely clean** and saying so is the report: `nextjs`
+(no `toFixed` at all), `llm-cost-optimizer` (`RouterDecision.signal_values` is
+built locally in `route()` and no caller retains it), `embedding-model-shootout`
+(already copies all three fields, before *and* after validation), and
+`agent-orchestration-platform` (its one `toFixed(0)` is a percentage over two
+shipped fixtures, so the collapse needs 201 of them).
+
+`portfolio-ops`#76 was verified against all four acceptance criteria and closed;
+`#71`'s 21-row worklist is now fully triaged with one row left, filed as
+`llm-eval-harness`#262.
