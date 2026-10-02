@@ -2049,3 +2049,11 @@ shipped fixtures, so the collapse needs 201 of them).
 `portfolio-ops`#76 was verified against all four acceptance criteria and closed;
 `#71`'s 21-row worklist is now fully triaged with one row left, filed as
 `llm-eval-harness`#262.
+
+## 2026-10-02 — paired-failure treats a time-out as red (#86)
+
+The paired-failure check looked for a commit with one passing and one
+*failed* run, and only the literal "failure" counted. The module's own
+definition of red, used by the main-branch check, also includes time-outs, so
+a commit where one workflow passed and another timed out wasn't flagged. It now
+uses the same definition. 6 new tests.
