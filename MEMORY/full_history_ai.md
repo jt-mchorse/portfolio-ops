@@ -2461,3 +2461,19 @@ context_for_next_session:
 decisions_made: []
 followups: ["csl#204", "leh#262"]
 ---
+
+---
+session: 2026-10-02T13:45Z
+issue: 86
+focus: PAIRED_FAILURE_TESTED_LITERAL_failure_WHILE_RED_CONCLUSIONS_INCLUDES_timed_out_SIBLING_OF_83
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 6
+  suite: "295 -> 301 green"
+decisions_made: []
+measured: "success+timed_out -> 0 findings before, 1 after. Revert: 1 of 6 red; the other arms are controls."
+context_for_next_session:
+  - AFTER_83_AND_86_EVERY_CHECK_IN_audit_phase_a_THAT_READS_A_CONCLUSION_USES_RED_CONCLUSIONS_grep_conclusion_eq_failure_to_confirm_none_remain
+followups: []
+---
