@@ -2461,3 +2461,22 @@ context_for_next_session:
 decisions_made: []
 followups: ["csl#204", "leh#262"]
 ---
+
+---
+session: 2026-10-02T10:30Z
+issue: 82
+focus: STALE_SCHEDULE_SHARED_ONE_10_RUN_WINDOW_ACROSS_EVERY_SCHEDULED_WORKFLOW_SO_A_WEEKLY_CRON_COULD_NEVER_BE_FLAGGED
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 12
+  suite: "295 -> 307 green"
+decisions_made: []
+measured: "live before: only trending-daily reported, 'has 8 consecutive failures'; trending-weekly failing every Sunday since 08-23 unreported. Live after: trending-daily 'at least 78', trending-weekly 'at least 11'. Revert probes ONE SUBPROCESS PER ID over 12 counted ids: per_page=10 -> 8 red, failure-only -> 1 red, no skip of null/cancelled/skipped -> 3 red."
+context_for_next_session:
+  - MY_FIRST_PROBE_COLLECTED_ZERO_IDS_AND_REPORTED_0_RED_FOR_ALL_THREE_REVERTS_ops_HAS_NO_addopts_SO_collect_only_WITHOUT_q_PRINTS_A_TREE_while_leh_HAS_addopts_q_SO_WITH_q_IT_IS_qq_PATH_COUNT_THE_FLAG_THAT_WORKS_IS_PER_REPO_ASSERT_THE_ID_COUNT_EVERY_TIME
+  - THE_STUBS_ANSWER_ONLY_THE_per_page_100_URL_SO_THE_WINDOW_ITSELF_IS_PINNED
+  - IDENTITY_UNCHANGED_repo_workflow_path_so_audit_cron_will_ADD_trending_weekly_ONCE_and_not_re_file_daily
+  - check_main_branch_red_DOCSTRING_SAYS_trending_weekly_IS_stale_schedules_FINDING_THAT_IS_NOW_TRUE
+followups: []
+---
