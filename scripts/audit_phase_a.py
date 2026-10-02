@@ -665,7 +665,9 @@ def resolve_job_timeout(runtime_name: str, labels: dict[str, int]) -> tuple[str,
     answer is "unresolved", not a guess. Callers must count those rather than
     discard them silently; `check_timeout_headroom` reports the count on every
     finding and `test_an_unresolvable_matrix_name_is_counted_not_guessed`
-    asserts it.
+    asserts it. A workflow with no finding for the count to ride on gets its own
+    `timeout-headroom-unresolved` finding (#84), so a matcher that resolves
+    nothing still cannot look like a clean repo.
     """
     if runtime_name in labels:
         return runtime_name, labels[runtime_name]
@@ -833,6 +835,25 @@ def check_timeout_headroom(
                 "run_url": url,
             }
         )
+    # A workflow whose jobs resolve to NOTHING produced no finding above, so the
+    # unresolved count had nothing to ride on and the repo audited clean -- the
+    # outcome the resolver's docstring says cannot happen (#84, D-012). Say so
+    # once per such workflow; a workflow that already has a headroom finding
+    # carries the count there and gets no second line.
+    flagged = {f["workflow_path"] for f in findings}
+    for path in sorted(unresolved):
+        if path in flagged:
+            continue
+        findings.append(
+            {
+                "kind": "timeout-headroom-unresolved",
+                "repo": repo,
+                "branch": branch,
+                "workflow_path": path,
+                "unresolved_jobs": sorted(unresolved[path]),
+                "runs_inspected": seen_runs[path],
+            }
+        )
     return findings
 
 
@@ -933,6 +954,13 @@ def format_finding(f: dict) -> str:
         return (
             f"  [{kind}] {repo}: workflow id {f['workflow_id']} "
             f"registered as {f['registered_name']!r} (path: {f['path']})"
+        )
+    if kind == "timeout-headroom-unresolved":
+        return (
+            f"  [{kind}] {repo}: {f['workflow_path']} has job name(s) the audit cannot "
+            f"match to a declared timeout, so their headroom is unwatched: "
+            f"{', '.join(f['unresolved_jobs'])} (give the job a literal `name:` or "
+            f"use the default matrix rendering)"
         )
     if kind == "stale-schedule":
         return (
