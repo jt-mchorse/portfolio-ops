@@ -173,7 +173,10 @@ def check_paired_failure(repo: str, token: str | None) -> list[dict]:
         if len(sha_runs) < 2:
             continue
         conclusions = {r["conclusion"] for r in sha_runs}
-        if "success" in conclusions and "failure" in conclusions:
+        # Red is `RED_CONCLUSIONS`, as in `main-branch-red`: a SHA where one
+        # workflow passed and another TIMED OUT is the same mixed verdict, and
+        # a literal `"failure"` test missed it.
+        if "success" in conclusions and conclusions & RED_CONCLUSIONS:
             findings.append(
                 {
                     "kind": "paired-failure",
