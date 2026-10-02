@@ -117,3 +117,16 @@
   reversibility: cheap
   related_issues: ["#76", "#35", "#40", "#69", "#63"]
   superseded_by: null
+
+- id: D-012
+  date: 2026-10-02
+  decision: check_timeout_headroom_EMITS_A_SECOND_KIND_timeout_headroom_unresolved_IDENTITY_repo_workflow_path_FOR_A_WORKFLOW_WITH_UNRESOLVABLE_RUNTIME_JOB_NAMES_AND_NO_HEADROOM_FINDING_TO_CARRY_THE_COUNT
+  rationale: D_011_promised_the_unresolved_count_RIDES_ON_EVERY_FINDING_so_a_matcher_that_resolves_nothing_CANNOT_LOOK_LIKE_A_CLEAN_REPO_but_a_workflow_where_nothing_resolved_PRODUCED_NO_FINDING_and_audited_clean_rc_0_with_a_job_at_99_percent_of_its_cap
+  WHY_A_NEW_KIND_NOT_A_timeout_headroom_FINDING: timeout_headroom_MEANS_THIS_JOB_HAS_NO_ROOM_LEFT_and_its_identity_is_the_JOB_an_unresolved_workflow_has_no_resolved_job_and_its_finding_means_THE_AUDIT_CANNOT_WATCH_THESE_JOBS_a_different_claim_with_a_different_identity
+  NO_DOUBLE_REPORT: a_workflow_that_already_has_a_headroom_finding_carries_the_count_there_and_gets_no_second_line
+  LIVE: latent_no_portfolio_workflow_interpolates_a_job_name_today_spot_checked_lco_leh_mcp_clean
+  alternatives_rejected: ["A_STDERR_NOTE_REJECTED_rc_0_and_clean_would_still_be_printed", "A_timeout_headroom_FINDING_WITH_A_PLACEHOLDER_job_name_REJECTED_it_asserts_a_cap_overrun_nobody_measured", "GUESS_THE_LABEL_REJECTED_by_D_011_already_a_wrong_label_attaches_a_duration_to_another_jobs_cap"]
+  measured: "issue repro (Test ${{ matrix.python }}, 99% of 15m) -> before: [] and 'clean' rc 0; after: one timeout-headroom-unresolved finding, rc 1. Revert 2 of 5 red."
+  reversibility: cheap
+  related_issues: ["#84", "#76"]
+  superseded_by: null

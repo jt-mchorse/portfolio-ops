@@ -2461,3 +2461,19 @@ context_for_next_session:
 decisions_made: []
 followups: ["csl#204", "leh#262"]
 ---
+
+---
+session: 2026-10-02T12:45Z
+issue: 84
+focus: TIMEOUT_HEADROOM_A_WORKFLOW_THAT_RESOLVED_NOTHING_AUDITED_CLEAN_D_012
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 5
+  suite: "295 -> 300 green"
+decisions_made: [D-012]
+measured: "repro before: [] and 'clean' rc 0; after: one timeout-headroom-unresolved finding, rc 1. Revert 2 of 5 red. Live lco/leh/mcp still clean."
+context_for_next_session:
+  - THE_PROMISE_WAS_IN_A_DOCSTRING_THE_COUNT_RIDES_ON_EVERY_FINDING_and_EVERY_finding_of_ZERO_findings_is_nothing_ASK_OF_ANY_PIGGYBACK_FIELD_WHAT_CARRIES_IT_WHEN_THE_HOST_IS_ABSENT
+followups: []
+---

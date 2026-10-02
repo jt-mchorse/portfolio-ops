@@ -238,3 +238,16 @@ issue's named plausible neighbours and both came back clean.
 **Reversibility:** Cheap.
 
 **Related issues:** #76, #35, #40, #69
+
+## D-012 — a workflow the headroom check cannot read is a finding (2026-10-02)
+
+D-011's timeout-headroom check matches runtime job names to the timeouts
+declared in YAML. When it can't match a name, it records the name and attaches
+it to the workflow's other findings. A workflow where **nothing** matched had no
+other findings, so the repo audited clean even with a job at 99% of its cap.
+That workflow now gets its own `timeout-headroom-unresolved` finding, keyed on
+`(repo, workflow_path)`, saying which jobs the audit can't watch and how to fix
+it. It's a separate kind because "this job is near its cap" and "these jobs
+can't be checked" are different claims. A workflow that already has a headroom
+finding doesn't get a second line. Latent today: no workflow in the portfolio
+names a job with an expression.

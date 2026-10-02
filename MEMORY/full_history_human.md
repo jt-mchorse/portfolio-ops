@@ -2049,3 +2049,11 @@ shipped fixtures, so the collapse needs 201 of them).
 `portfolio-ops`#76 was verified against all four acceptance criteria and closed;
 `#71`'s 21-row worklist is now fully triaged with one row left, filed as
 `llm-eval-harness`#262.
+
+## 2026-10-02 — a workflow the timeout check can't read no longer audits clean (#84, D-012)
+
+The timeout-headroom check promised that job names it can't match would be
+reported alongside its findings. When nothing in a workflow matched, there were
+no findings to report them with, and the repo audited clean. Such a workflow now
+gets its own finding (D-012). This was latent: no portfolio workflow is affected
+today. 5 new tests.
