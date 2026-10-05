@@ -217,9 +217,30 @@ def check_stuck_registration(repo: str, token: str | None) -> list[dict]:
 def check_stale_schedule(
     repo: str, token: str | None, threshold: int = 3
 ) -> list[dict]:
-    """Flag scheduled workflows with >= threshold consecutive failures and no successes."""
+    """Flag scheduled workflows with >= threshold consecutive red runs and no successes.
+
+    **Each workflow is judged on its own runs** (#82). This used to read one
+    ``per_page=10`` window for the whole repo and group it by path, so a daily
+    job filled the window and a weekly job beside it got one or two runs --
+    never the threshold. Measured live on portfolio-ops: ``trending-weekly``
+    had failed every Sunday since 08-23 and was never reported. The window is
+    now the API maximum, which covers ~12 weeks of a daily-plus-weekly repo;
+    the honest residue is that a sub-hourly cron could still crowd it, and no
+    portfolio repo has one (only portfolio-ops schedules anything).
+
+    **Red is ``RED_CONCLUSIONS``, as for push runs** (#82). Counting only
+    ``failure`` let a ``timed_out`` run break the streak, so a cron that times
+    out nightly was seen by no fingerprint -- ``main-branch-red`` hands schedule
+    events to this check. A run with no verdict yet (``null``), or one that was
+    ``cancelled``/``skipped``, is neither red nor green and is stepped over;
+    anything else ends the streak.
+
+    When the window runs out before a non-red run, the streak is a lower bound
+    and the finding says so (``streak_is_lower_bound``). The identity is still
+    ``(repo, workflow_path)``, so the count moving does not re-file.
+    """
     data = _gh_get(
-        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=schedule&per_page=10",
+        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=schedule&per_page=100",
         token,
     )
     runs = data.get("workflow_runs", [])
@@ -231,10 +252,15 @@ def check_stale_schedule(
     for path, path_runs in by_path.items():
         # Runs are in descending chronological order from the API.
         consecutive_failures = 0
+        ended = False
         for run in path_runs:
-            if run["conclusion"] == "failure":
+            conclusion = run.get("conclusion")
+            if conclusion in (None, "cancelled", "skipped"):
+                continue
+            if conclusion in RED_CONCLUSIONS:
                 consecutive_failures += 1
             else:
+                ended = True
                 break
         if consecutive_failures >= threshold:
             findings.append(
@@ -243,6 +269,7 @@ def check_stale_schedule(
                     "repo": repo,
                     "workflow_path": path,
                     "consecutive_failures": consecutive_failures,
+                    "streak_is_lower_bound": not ended,
                     "name": path_runs[0]["name"],
                 }
             )
@@ -937,7 +964,8 @@ def format_finding(f: dict) -> str:
     if kind == "stale-schedule":
         return (
             f"  [{kind}] {repo}: {f['name']} ({f['workflow_path']}) "
-            f"has {f['consecutive_failures']} consecutive failures"
+            f"has {'at least ' if f.get('streak_is_lower_bound') else ''}"
+            f"{f['consecutive_failures']} consecutive failures"
         )
     if kind == "phantom-ci":
         samples = ", ".join(f["sample_shas"])
