@@ -220,9 +220,30 @@ def check_stuck_registration(repo: str, token: str | None) -> list[dict]:
 def check_stale_schedule(
     repo: str, token: str | None, threshold: int = 3
 ) -> list[dict]:
-    """Flag scheduled workflows with >= threshold consecutive failures and no successes."""
+    """Flag scheduled workflows with >= threshold consecutive red runs and no successes.
+
+    **Each workflow is judged on its own runs** (#82). This used to read one
+    ``per_page=10`` window for the whole repo and group it by path, so a daily
+    job filled the window and a weekly job beside it got one or two runs --
+    never the threshold. Measured live on portfolio-ops: ``trending-weekly``
+    had failed every Sunday since 08-23 and was never reported. The window is
+    now the API maximum, which covers ~12 weeks of a daily-plus-weekly repo;
+    the honest residue is that a sub-hourly cron could still crowd it, and no
+    portfolio repo has one (only portfolio-ops schedules anything).
+
+    **Red is ``RED_CONCLUSIONS``, as for push runs** (#82). Counting only
+    ``failure`` let a ``timed_out`` run break the streak, so a cron that times
+    out nightly was seen by no fingerprint -- ``main-branch-red`` hands schedule
+    events to this check. A run with no verdict yet (``null``), or one that was
+    ``cancelled``/``skipped``, is neither red nor green and is stepped over;
+    anything else ends the streak.
+
+    When the window runs out before a non-red run, the streak is a lower bound
+    and the finding says so (``streak_is_lower_bound``). The identity is still
+    ``(repo, workflow_path)``, so the count moving does not re-file.
+    """
     data = _gh_get(
-        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=schedule&per_page=10",
+        f"/repos/{REPO_OWNER}/{repo}/actions/runs?event=schedule&per_page=100",
         token,
     )
     runs = data.get("workflow_runs", [])
@@ -234,10 +255,15 @@ def check_stale_schedule(
     for path, path_runs in by_path.items():
         # Runs are in descending chronological order from the API.
         consecutive_failures = 0
+        ended = False
         for run in path_runs:
-            if run["conclusion"] == "failure":
+            conclusion = run.get("conclusion")
+            if conclusion in (None, "cancelled", "skipped"):
+                continue
+            if conclusion in RED_CONCLUSIONS:
                 consecutive_failures += 1
             else:
+                ended = True
                 break
         if consecutive_failures >= threshold:
             findings.append(
@@ -246,6 +272,7 @@ def check_stale_schedule(
                     "repo": repo,
                     "workflow_path": path,
                     "consecutive_failures": consecutive_failures,
+                    "streak_is_lower_bound": not ended,
                     "name": path_runs[0]["name"],
                 }
             )
@@ -668,7 +695,9 @@ def resolve_job_timeout(runtime_name: str, labels: dict[str, int]) -> tuple[str,
     answer is "unresolved", not a guess. Callers must count those rather than
     discard them silently; `check_timeout_headroom` reports the count on every
     finding and `test_an_unresolvable_matrix_name_is_counted_not_guessed`
-    asserts it.
+    asserts it. A workflow with no finding for the count to ride on gets its own
+    `timeout-headroom-unresolved` finding (#84), so a matcher that resolves
+    nothing still cannot look like a clean repo.
     """
     if runtime_name in labels:
         return runtime_name, labels[runtime_name]
@@ -836,6 +865,25 @@ def check_timeout_headroom(
                 "run_url": url,
             }
         )
+    # A workflow whose jobs resolve to NOTHING produced no finding above, so the
+    # unresolved count had nothing to ride on and the repo audited clean -- the
+    # outcome the resolver's docstring says cannot happen (#84, D-012). Say so
+    # once per such workflow; a workflow that already has a headroom finding
+    # carries the count there and gets no second line.
+    flagged = {f["workflow_path"] for f in findings}
+    for path in sorted(unresolved):
+        if path in flagged:
+            continue
+        findings.append(
+            {
+                "kind": "timeout-headroom-unresolved",
+                "repo": repo,
+                "branch": branch,
+                "workflow_path": path,
+                "unresolved_jobs": sorted(unresolved[path]),
+                "runs_inspected": seen_runs[path],
+            }
+        )
     return findings
 
 
@@ -937,10 +985,18 @@ def format_finding(f: dict) -> str:
             f"  [{kind}] {repo}: workflow id {f['workflow_id']} "
             f"registered as {f['registered_name']!r} (path: {f['path']})"
         )
+    if kind == "timeout-headroom-unresolved":
+        return (
+            f"  [{kind}] {repo}: {f['workflow_path']} has job name(s) the audit cannot "
+            f"match to a declared timeout, so their headroom is unwatched: "
+            f"{', '.join(f['unresolved_jobs'])} (give the job a literal `name:` or "
+            f"use the default matrix rendering)"
+        )
     if kind == "stale-schedule":
         return (
             f"  [{kind}] {repo}: {f['name']} ({f['workflow_path']}) "
-            f"has {f['consecutive_failures']} consecutive failures"
+            f"has {'at least ' if f.get('streak_is_lower_bound') else ''}"
+            f"{f['consecutive_failures']} consecutive failures"
         )
     if kind == "phantom-ci":
         samples = ", ".join(f["sample_shas"])

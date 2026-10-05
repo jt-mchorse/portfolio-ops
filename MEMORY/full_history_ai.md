@@ -2463,6 +2463,41 @@ followups: ["csl#204", "leh#262"]
 ---
 
 ---
+session: 2026-10-02T10:30Z
+issue: 82
+focus: STALE_SCHEDULE_SHARED_ONE_10_RUN_WINDOW_ACROSS_EVERY_SCHEDULED_WORKFLOW_SO_A_WEEKLY_CRON_COULD_NEVER_BE_FLAGGED
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 12
+  suite: "295 -> 307 green"
+decisions_made: []
+measured: "live before: only trending-daily reported, 'has 8 consecutive failures'; trending-weekly failing every Sunday since 08-23 unreported. Live after: trending-daily 'at least 78', trending-weekly 'at least 11'. Revert probes ONE SUBPROCESS PER ID over 12 counted ids: per_page=10 -> 8 red, failure-only -> 1 red, no skip of null/cancelled/skipped -> 3 red."
+context_for_next_session:
+  - MY_FIRST_PROBE_COLLECTED_ZERO_IDS_AND_REPORTED_0_RED_FOR_ALL_THREE_REVERTS_ops_HAS_NO_addopts_SO_collect_only_WITHOUT_q_PRINTS_A_TREE_while_leh_HAS_addopts_q_SO_WITH_q_IT_IS_qq_PATH_COUNT_THE_FLAG_THAT_WORKS_IS_PER_REPO_ASSERT_THE_ID_COUNT_EVERY_TIME
+  - THE_STUBS_ANSWER_ONLY_THE_per_page_100_URL_SO_THE_WINDOW_ITSELF_IS_PINNED
+  - IDENTITY_UNCHANGED_repo_workflow_path_so_audit_cron_will_ADD_trending_weekly_ONCE_and_not_re_file_daily
+  - check_main_branch_red_DOCSTRING_SAYS_trending_weekly_IS_stale_schedules_FINDING_THAT_IS_NOW_TRUE
+followups: []
+---
+
+---
+session: 2026-10-02T12:45Z
+issue: 84
+focus: TIMEOUT_HEADROOM_A_WORKFLOW_THAT_RESOLVED_NOTHING_AUDITED_CLEAN_D_012
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 5
+  suite: "295 -> 300 green"
+decisions_made: [D-012]
+measured: "repro before: [] and 'clean' rc 0; after: one timeout-headroom-unresolved finding, rc 1. Revert 2 of 5 red. Live lco/leh/mcp still clean."
+context_for_next_session:
+  - THE_PROMISE_WAS_IN_A_DOCSTRING_THE_COUNT_RIDES_ON_EVERY_FINDING_and_EVERY_finding_of_ZERO_findings_is_nothing_ASK_OF_ANY_PIGGYBACK_FIELD_WHAT_CARRIES_IT_WHEN_THE_HOST_IS_ABSENT
+followups: []
+---
+
+---
 session: 2026-10-02T13:45Z
 issue: 86
 focus: PAIRED_FAILURE_TESTED_LITERAL_failure_WHILE_RED_CONCLUSIONS_INCLUDES_timed_out_SIBLING_OF_83
