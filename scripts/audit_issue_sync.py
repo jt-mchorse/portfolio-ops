@@ -74,6 +74,7 @@ IDENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "stale-schedule": ("repo", "workflow_path"),
     "stuck-registration": ("repo", "workflow_id", "path"),
     "timeout-headroom": ("repo", "workflow_path", "job_name"),
+    "timeout-headroom-unresolved": ("repo", "workflow_path"),
     "unpinned-lint-config": ("repo", "path"),
 }
 

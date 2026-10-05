@@ -2064,3 +2064,11 @@ whole window is red, it says "at least N". Live, it now reports both trending
 workflows: daily at least 78 and weekly at least 11. My first revert probe
 collected zero test ids and reported zero failures. The id count exposed that
 before I believed it.
+
+## 2026-10-02 — a workflow the timeout check can't read no longer audits clean (#84, D-012)
+
+The timeout-headroom check promised that job names it can't match would be
+reported alongside its findings. When nothing in a workflow matched, there were
+no findings to report them with, and the repo audited clean. Such a workflow now
+gets its own finding (D-012). This was latent: no portfolio workflow is affected
+today. 5 new tests.
