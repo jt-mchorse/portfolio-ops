@@ -2072,3 +2072,11 @@ reported alongside its findings. When nothing in a workflow matched, there were
 no findings to report them with, and the repo audited clean. Such a workflow now
 gets its own finding (D-012). This was latent: no portfolio workflow is affected
 today. 5 new tests.
+
+## 2026-10-02 — paired-failure treats a time-out as red (#86)
+
+The paired-failure check looked for a commit with one passing and one
+*failed* run, and only the literal "failure" counted. The module's own
+definition of red, used by the main-branch check, also includes time-outs, so
+a commit where one workflow passed and another timed out wasn't flagged. It now
+uses the same definition. 6 new tests.
