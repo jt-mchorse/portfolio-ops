@@ -2050,6 +2050,21 @@ shipped fixtures, so the collapse needs 201 of them).
 `#71`'s 21-row worklist is now fully triaged with one row left, filed as
 `llm-eval-harness`#262.
 
+## 2026-10-02 — the stale-schedule check can see a weekly cron (#82)
+
+The audit's stale-schedule check read only the ten newest scheduled runs in
+the whole repo. A daily job fills that window, so a weekly job beside it never
+had three runs in view and could never be flagged. Measured live,
+`trending-weekly` had failed every Sunday since late August without being
+reported. The check also counted only `failure`, so a `timed_out` run reset
+the streak, even though the push-run check treats `timed_out` as red. It now
+reads the API's maximum page of 100, counts the same red conclusions as the
+push check, and skips runs with no verdict or that were cancelled. When the
+whole window is red, it says "at least N". Live, it now reports both trending
+workflows: daily at least 78 and weekly at least 11. My first revert probe
+collected zero test ids and reported zero failures. The id count exposed that
+before I believed it.
+
 ## 2026-10-02 — a workflow the timeout check can't read no longer audits clean (#84, D-012)
 
 The timeout-headroom check promised that job names it can't match would be
