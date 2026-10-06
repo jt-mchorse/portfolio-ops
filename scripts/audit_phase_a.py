@@ -153,8 +153,25 @@ def _gh_get(path: str, token: str | None) -> Any:
     )
     if token:
         req.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    # Every way this one request can fail leaves here as a `URLError` (#88),
+    # which `main` maps to the fetch-error exit 2 -- `HTTPError` already is one.
+    # A timeout or reset while reading the body is an `OSError` that is not a
+    # `URLError`, and a 200 whose body is not JSON (a proxy's page) is a
+    # `ValueError`; both escaped as tracebacks at exit 1, the code audit-cron
+    # files findings on. Translated here rather than caught in `main`, so a
+    # genuine `ValueError` bug inside a check still crashes instead of being
+    # reported as a network failure.
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except urllib.error.URLError:
+        raise
+    except OSError as exc:
+        raise urllib.error.URLError(exc) from exc
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError
+        raise urllib.error.URLError(f"response from {url} was not JSON: {exc}") from exc
 
 
 def check_paired_failure(repo: str, token: str | None) -> list[dict]:
