@@ -2512,3 +2512,21 @@ context_for_next_session:
   - AFTER_83_AND_86_EVERY_CHECK_IN_audit_phase_a_THAT_READS_A_CONCLUSION_USES_RED_CONCLUSIONS_grep_conclusion_eq_failure_to_confirm_none_remain
 followups: []
 ---
+
+---
+session: 2026-10-06T09:07Z
+issue: 88
+focus: AUDIT_PHASE_A_A_READ_TIMEOUT_RESET_OR_NON_JSON_200_ESCAPED_AT_EXIT_1_THE_FINDINGS_CODE_AUDIT_CRON_FILES_ON
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 7
+  suite: "318 -> 325 green"
+decisions_made: []
+measured: "monkeypatched urlopen: main TimeoutError / ConnectionResetError / JSONDecodeError all escaped (exit 1); fixed rc 2 with one error line. Revert probe (venv, one subprocess per id): 4 new arms red, 2 controls + the ValueError-propagates arm green."
+context_for_next_session:
+  - TRANSLATE_AT_THE_SOURCE_NOT_IN_MAIN_a_blanket_except_ValueError_in_main_would_relabel_a_bug_in_any_check_as_a_network_failure
+  - GOTCHA_SYSTEM_python3_HAS_NO_pytest_my_first_probe_read_every_arm_rc_1_DID_NOT_RUN_use_the_ops_venv
+  - SIBLINGS_FIXED_THE_SAME_DAY_leh_303_and_rag_276
+followups: []
+---

@@ -2080,3 +2080,12 @@ The paired-failure check looked for a commit with one passing and one
 definition of red, used by the main-branch check, also includes time-outs, so
 a commit where one workflow passed and another timed out wasn't flagged. It now
 uses the same definition. 6 new tests.
+
+## 2026-10-06 — a network hiccup can no longer look like an audit finding (#88)
+
+The audit script exits 1 when it finds problems and 2 when it cannot reach
+GitHub, and the weekly cron files an issue only on 1. A timeout or dropped
+connection while reading GitHub's reply, or a reply that was not JSON, crashed
+the script with exit code 1, which looks like "findings". Those failures now
+exit 2 with a one-line error, like other network failures. A real bug inside
+a check still crashes loudly rather than being reported as a network problem.
