@@ -2530,3 +2530,21 @@ context_for_next_session:
   - SIBLINGS_FIXED_THE_SAME_DAY_leh_303_and_rag_276
 followups: []
 ---
+
+---
+session: 2026-10-14T07:45Z
+issue: 90
+focus: RESOLVE_MEMORY_CONFLICT_WROTE_THE_DIFF3_BASE_MARKER_INTO_MEMORY_AND_EXITED_0
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 9
+  suite: "325 -> 334 green"
+decisions_made: []
+measured: "real git rebase, git 2.50.1: merge style resolved clean; zdiff3 and diff3 both printed resolved, rc 0, and left a '||||||| parent of <sha>' line in BOTH MEMORY files (AI file no longer yaml.safe_loads); diff3 also added an empty ---/--- document because it hoists nothing. After: all three styles resolve byte-identically. Revert probe: 7 of 9 new arms red, the 2 green are the merge-style control and the prose-marker tolerance control."
+context_for_next_session:
+  - A_REVERT_PROBE_ARM_THAT_READ_mod_MARKER_LINE_WAS_RED_ON_AttributeError_NOT_ON_THE_BUG_the_merge_control_now_uses_a_test_local_regex
+  - GIT_DIFF3_IS_NOT_UNREFINED_both_sides_editing_the_same_trailer_line_STILL_showed_an_EMPTY_base_it_took_both_sides_editing_the_session_line_to_get_a_non_empty_one
+  - UNDER_THE_DEFAULT_merge_STYLE_a_conflict_that_edited_history_is_STILL_resolved_by_keeping_both_sides_there_is_no_base_to_tell_it_apart_NOT_FIXED_HERE
+followups: []
+---
