@@ -37,6 +37,21 @@ Conflict shapes handled:
 
     Resolution: concatenate with a blank line. No trailer munging needed.
 
+  diff3 / zdiff3 (`merge.conflictStyle`), either file:
+    <<<<<<< HEAD
+    <block_a_body>
+    ||||||| <base label>
+    <base_body>
+    =======
+    <block_b_body>
+    >>>>>>> <commit>
+
+    The base section is what both sides started from. For an append-only file
+    that is empty, so it is dropped; a NON-empty base means a side edited
+    existing history, which is not this tool's shape -- refused (#90). diff3
+    also does no common-line hoisting, so each side is already a complete
+    `---`...`---` block and is concatenated as-is.
+
 Usage:
   python scripts/resolve_memory_conflict.py <repo-path>
   python scripts/resolve_memory_conflict.py <repo-path> --dry-run
@@ -54,9 +69,33 @@ import sys
 from pathlib import Path
 
 CONFLICT = re.compile(
-    r"<<<<<<< HEAD\n(.*?)\n=======\n(.*?)\n>>>>>>> [^\n]*\n",
+    r"<<<<<<< HEAD\n(.*?)\n(?:\|\|\|\|\|\|\|[^\n]*\n(.*?))?=======\n(.*?)\n>>>>>>> [^\n]*\n",
     re.DOTALL,
 )
+
+#: A line that is one of git's conflict markers. Before #90 the regex above
+#: had no base section, so under diff3/zdiff3 it matched anyway -- with the
+#: `|||||||` line swallowed into block_a -- and wrote that line back out while
+#: printing `resolved:` and exiting 0. Counting marker lines before and after
+#: is what makes any shape this module does not know fail loudly instead.
+MARKER_LINE = re.compile(r"^(?:<{7}|\|{7}|={7}|>{7})(?: |$)", re.MULTILINE)
+
+
+def _sides(m: re.Match[str]) -> tuple[str, str]:
+    """Return (block_a, block_b), refusing a conflict that edited history.
+
+    An append-only conflict has an empty base: both sides only added lines
+    after the same point. diff3's base section is therefore empty or blank; if
+    it carries text, one side changed an existing entry, and keeping both
+    sides would silently keep the old and the new version of it.
+    """
+    base = m.group(2)
+    if base is not None and base.strip():
+        raise RuntimeError(
+            "conflict has a non-empty base section, so a side edited existing "
+            "history; that is not the append-only shape. Inspect manually."
+        )
+    return m.group(1), m.group(3)
 
 
 #: Trailer lines git may hoist out of the conflict region, followed by the
@@ -104,10 +143,14 @@ def resolve_yaml(text: str) -> str:
     """
 
     def repl(m: re.Match[str]) -> str:
-        a = m.group(1)
-        b = m.group(2)
+        a, b = _sides(m)
         hoisted = HOISTED_TRAILER.match(m.string[m.end() :])
         if hoisted is None:
+            if a.rsplit("\n", 1)[-1] == "---":
+                # diff3 hoists nothing, not even the `---` closers: each side is
+                # already a whole block, and adding separators would put an
+                # empty document between them (#90).
+                return f"{a}\n{b}\n"
             # Nothing was hoisted: the two trailers differed entirely, so each
             # block already carries its own and only the separators are needed.
             return f"{a}\n---\n\n---\n{b}\n"
@@ -191,9 +234,9 @@ def resolve_md(text: str) -> str:
     """
 
     def repl(m: re.Match[str]) -> str:
-        a = m.group(1)
-        b = m.group(2)
-        return f"{a}\n\n{b}\n"
+        a, b = _sides(m)
+        # diff3 leaves each side's leading blank line inside the region.
+        return f"{a}\n\n{b.lstrip(chr(10))}\n"
 
     return CONFLICT.sub(repl, text)
 
@@ -209,8 +252,17 @@ def _process(path: Path, resolver, dry_run: bool) -> bool:
     # MEMORY/full_history_human.md documents the marker shape in prose.
     if not CONFLICT.search(original):
         return False
-    resolved = resolver(original)
-    if CONFLICT.search(resolved):
+    try:
+        resolved = resolver(original)
+    except RuntimeError as exc:
+        raise RuntimeError(f"{path}: {exc}") from None
+    # Compared against the original with its conflicts removed, not against
+    # zero, so a marker-shaped line already in the file's prose is tolerated.
+    markers_before = len(MARKER_LINE.findall(CONFLICT.sub("", original)))
+    if (
+        CONFLICT.search(resolved)
+        or len(MARKER_LINE.findall(resolved)) > markers_before
+    ):
         raise RuntimeError(
             f"Conflict markers remain in {path} after resolution; shape did "
             "not match the expected append-only pattern. Inspect manually."
