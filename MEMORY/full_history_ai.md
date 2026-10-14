@@ -2548,3 +2548,21 @@ context_for_next_session:
   - UNDER_THE_DEFAULT_merge_STYLE_a_conflict_that_edited_history_is_STILL_resolved_by_keeping_both_sides_there_is_no_base_to_tell_it_apart_NOT_FIXED_HERE
 followups: []
 ---
+
+---
+session: 2026-10-14T08:00Z
+issue: 92
+focus: PRUNE_STALE_TRENDING_NEVER_READ_THE_STATUS_gh_RETURNS_SO_A_403_CLOSE_PRINTED_CLOSED_AND_EXITED_0
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 6
+  suite: "325 -> 331 green"
+decisions_made: []
+measured: "monkeypatched gh: 403 on every write -> '[closed] rag-production-kit#7', 'closed 1', rc 0; 401 on listing -> 'closed 0', rc 0. After: rc 1, nothing counted, and a refused close sends no label/comment. Revert probe 5 of 6 red; the green one is the other-repos-still-listed arm, which held before too."
+context_for_next_session:
+  - gh_RETURNS_A_STATUS_INSTEAD_OF_RAISING_SO_A_TRY_EXCEPT_AROUND_A_CALLER_IS_NOT_ERROR_HANDLING_grep_every_gh_call_whose_tuple_is_discarded
+  - SIBLING_NOT_FIXED_trending_scan_count_open_trending_issues_and_existing_issue_titles_FAIL_OPEN_ON_A_REFUSED_READ_cap_0_and_empty_dedupe_ONLY_IF_EVERY_READ_FAILS_WHILE_WRITES_SUCCEED
+  - LATENT_UNTIL_ops_17_trending_weekly_dies_at_the_scan_step_before_prune_runs
+followups: []
+---
