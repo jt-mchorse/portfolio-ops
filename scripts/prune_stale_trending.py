@@ -14,7 +14,8 @@ Required env:
 
 Exit codes:
   0   ran cleanly
-  1   missing env or unrecoverable error
+  1   missing env, or any repo's listing or any issue's close was refused
+      (every other repo and issue is still attempted first)
 """
 from __future__ import annotations
 
@@ -65,12 +66,19 @@ def gh(method: str, path: str, body: Any = None) -> tuple[int, Any]:
             return e.code, {"raw": body_txt}
 
 
+class GitHubCallFailed(RuntimeError):
+    """`gh()` reports a status rather than raising, so every caller must check
+    it. A 401/403 that is not checked reads as "nothing to do" (#92)."""
+
+
 def list_trending_issues(repo: str) -> list[dict]:
     issues = []
     page = 1
     while True:
         c, b = gh("GET", f"/repos/{REPO_OWNER}/{repo}/issues?state=open&labels=trending&per_page=100&page={page}")
-        if c != 200 or not isinstance(b, list) or not b:
+        if c != 200 or not isinstance(b, list):
+            raise GitHubCallFailed(f"listing {repo} page {page} returned {c}: {b}")
+        if not b:
             break
         for issue in b:
             if "pull_request" not in issue:
@@ -88,19 +96,26 @@ def is_stale(issue: dict) -> bool:
 
 
 def close_stale(repo: str, issue: dict) -> None:
+    """Close first: if the close is refused, nothing else has been written, so
+    the issue is not left open under a `wontfix-stale` label and an
+    "Auto-closed" comment (#92). Raises `GitHubCallFailed` on a refused close."""
     n = issue["number"]
-    # Add wontfix-stale label
-    gh("POST", f"/repos/{REPO_OWNER}/{repo}/issues/{n}/labels", {"labels": ["wontfix-stale"]})
-    # Comment
-    gh("POST", f"/repos/{REPO_OWNER}/{repo}/issues/{n}/comments", {
-        "body": f"Auto-closed by `prune_stale_trending.py`: no engagement in {STALE_DAYS} days. Reopen if still relevant.",
-    })
-    # Close
-    gh("PATCH", f"/repos/{REPO_OWNER}/{repo}/issues/{n}", {
+    c, b = gh("PATCH", f"/repos/{REPO_OWNER}/{repo}/issues/{n}", {
         "state": "closed",
         "state_reason": "not_planned",
     })
+    if c != 200:
+        raise GitHubCallFailed(f"close returned {c}: {b}")
     print(f"[closed] {repo}#{n}: {issue['title'][:80]}")
+    # The issue is closed; a refused label or comment is worth a warning, not a failure.
+    c, b = gh("POST", f"/repos/{REPO_OWNER}/{repo}/issues/{n}/labels", {"labels": ["wontfix-stale"]})
+    if c != 200:
+        print(f"[warn] {repo}#{n} label returned {c}: {b}", file=sys.stderr)
+    c, b = gh("POST", f"/repos/{REPO_OWNER}/{repo}/issues/{n}/comments", {
+        "body": f"Auto-closed by `prune_stale_trending.py`: no engagement in {STALE_DAYS} days. Reopen if still relevant.",
+    })
+    if c != 201:
+        print(f"[warn] {repo}#{n} comment returned {c}: {b}", file=sys.stderr)
 
 
 def main() -> int:
@@ -109,8 +124,14 @@ def main() -> int:
         return 1
 
     closed_total = 0
+    failures = 0
     for repo in ALL_REPOS:
-        issues = list_trending_issues(repo)
+        try:
+            issues = list_trending_issues(repo)
+        except GitHubCallFailed as e:
+            print(f"[error] {e}", file=sys.stderr)
+            failures += 1
+            continue
         stale = [i for i in issues if is_stale(i)]
         if not stale:
             continue
@@ -120,9 +141,13 @@ def main() -> int:
                 close_stale(repo, issue)
                 closed_total += 1
             except Exception as e:
-                print(f"[warn] {repo}#{issue['number']} close failed: {e}", file=sys.stderr)
+                print(f"[error] {repo}#{issue['number']} close failed: {e}", file=sys.stderr)
+                failures += 1
 
     print(f"done — closed {closed_total} stale trending issues")
+    if failures:
+        print(f"{failures} listing/close call(s) failed; exiting 1", file=sys.stderr)
+        return 1
     return 0
 
 
