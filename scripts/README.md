@@ -12,7 +12,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
 | `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010 |
-| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. | #11, #23, #25, #65 |
+| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. | #11, #23, #25, #65, #90 |
 
 ## Local-runner setup
 

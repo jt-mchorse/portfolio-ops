@@ -2089,3 +2089,14 @@ connection while reading GitHub's reply, or a reply that was not JSON, crashed
 the script with exit code 1, which looks like "findings". Those failures now
 exit 2 with a one-line error, like other network failures. A real bug inside
 a check still crashes loudly rather than being reported as a network problem.
+
+## 2026-10-14 — the MEMORY conflict resolver handles diff3/zdiff3 conflicts (#90)
+
+`resolve_memory_conflict.py` only knew git's default two-way conflict format.
+Under `merge.conflictStyle=diff3` or `zdiff3`, git adds a third
+`||||||| <base>` section. The tool kept that marker line in both MEMORY files,
+printed "resolved" and exited 0, and the AI history file no longer parsed as
+YAML. It now drops an empty base section and refuses a non-empty one, because a
+non-empty base means someone edited existing history. It also refuses to write
+any file that still has a conflict-marker line in it. All three conflict styles
+now give byte-identical results. 9 new tests; 7 of them fail on the old script.
