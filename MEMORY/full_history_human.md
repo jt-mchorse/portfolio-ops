@@ -2100,3 +2100,14 @@ YAML. It now drops an empty base section and refuses a non-empty one, because a
 non-empty base means someone edited existing history. It also refuses to write
 any file that still has a conflict-marker line in it. All three conflict styles
 now give byte-identical results. 9 new tests; 7 of them fail on the old script.
+
+## 2026-10-14 — stale-trending pruning reports what GitHub actually did (#92)
+
+`prune_stale_trending.py` never checked the status code of its GitHub calls.
+If GitHub refused the close, the script still printed "[closed]", counted the
+issue and exited 0, and the issue stayed open. If GitHub refused the listing,
+the script read that as "no trending issues". It now closes first and counts
+only an accepted close. A refused listing or close makes the run exit 1, and a
+refused label or comment after a successful close is a warning. This is latent
+until the trending secret (#17) is configured, because the weekly workflow fails
+before this step. 6 new tests.
