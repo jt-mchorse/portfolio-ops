@@ -1,5 +1,5 @@
 {
-  "_comment": "Unparseable session blocks per repo, frozen by #66. This is a RATCHET: check_memory_yaml.py fails when a count grows, never demanding zero, so the retro-fix decision (#66) stays JT's. Regenerate with --write-baseline only as part of a deliberate retro-fix.",
+  "_comment": "Unparseable MEMORY entries per repo: session blocks in full_history_ai.md (frozen by #66) and decision entries in core_decisions_ai.md (frozen by #75). This is a RATCHET: check_memory_yaml.py fails when a count grows, never demanding zero, so the retro-fix decision (#66, #75) stays JT's. Regenerate with --write-baseline only as part of a deliberate retro-fix.",
   "unparseable_by_repo": {
     "agent-orchestration-platform": 5,
     "ai-app-integration-tests": 5,
@@ -14,5 +14,20 @@
     "python-async-llm-pipelines": 2,
     "rag-production-kit": 6,
     "vector-search-at-scale": 3
+  },
+  "unparseable_decisions_by_repo": {
+    "agent-orchestration-platform": 10,
+    "ai-app-integration-tests": 8,
+    "chunking-strategies-lab": 2,
+    "embedding-model-shootout": 3,
+    "llm-cost-optimizer": 2,
+    "llm-eval-harness": 8,
+    "mcp-server-cookbook": 7,
+    "nextjs-streaming-ai-patterns": 7,
+    "portfolio-ops": 3,
+    "prompt-regression-suite": 2,
+    "python-async-llm-pipelines": 1,
+    "rag-production-kit": 1,
+    "vector-search-at-scale": 9
   }
 }

@@ -73,6 +73,13 @@ unparseable blocks *grows* past its committed baseline. It does not demand zero 
 `MEMORY/` is append-only (handoff §10) and retro-fixing the existing 74 is JT's
 call, deliberately left open.
 
+**The same rule applies to `core_decisions_ai.md`** (D-013, #75): quote every
+item of every list in a new decision entry — `related_issues: ["#75", "#66"]`,
+`alternatives_rejected: ["a", "b"]`. There the damage is worse than one block:
+the file is a single YAML sequence, so one bare `[#188]` makes `yaml.safe_load`
+of the whole file fail and a consumer reads zero decisions. `check_memory_yaml.py
+--kind decisions` ratchets it per `- id:` entry, the same way.
+
 2. **Derive the human version.** Append a section to `full_history_human.md`:
 
 ```markdown
@@ -99,9 +106,9 @@ call, deliberately left open.
   date: YYYY-MM-DD
   decision: <snake_case_summary>
   rationale: <snake_case_one_clause>
-  alternatives_rejected: [<a>, <b>]
+  alternatives_rejected: ["<a>", "<b>"]   # quote every item (D-013)
   reversibility: cheap | expensive | one-way
-  related_issues: [#NN, #NN]
+  related_issues: ["#NN", "#NN"]          # quote every item (D-013)
   superseded_by: null   # set to D-NNN when superseded; never delete entries
 ```
 

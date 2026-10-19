@@ -11,7 +11,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `audit_issue_sync.py` | Decides whether an audit finding set should **file** a new `[audit-cron]` issue, **comment** on the open one, or stay **silent**. Compares stable per-kind finding identities — excluding volatile fields like `consecutive_failures`, `sha` and `sample_shas` — against the machine-readable block the last run recorded on the issue. Replaces the presence-only skip that let one unclosable issue suppress every new finding for ~10 weeks. | #72 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
-| `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010 |
+| `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks, and with `--kind decisions` on unparseable `MEMORY/core_decisions_ai.md` entries. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010, #75, D-013 |
 | `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. | #11, #23, #25, #65, #90 |
 
 ## Local-runner setup
@@ -34,6 +34,7 @@ python3 scripts/audit_phase_a.py --repo llm-eval-harness
 # repo checked out can run the cross-repo one.
 cd ~/projects/portfolio
 python3 portfolio-ops/scripts/check_memory_yaml.py --root .
+python3 portfolio-ops/scripts/check_memory_yaml.py --root . --kind decisions
 # -> 0 within baseline, 1 a repo regressed, 2 usage/IO error
 ```
 
@@ -41,8 +42,19 @@ python3 portfolio-ops/scripts/check_memory_yaml.py --root .
 `scripts/memory_yaml_baseline.json` and fails only when a count grows. It does
 not demand zero. `MEMORY/` is append-only (handoff §10), and whether the 74
 existing unparseable blocks are retro-fixed is a JT decision (#66) that the
-ratchet deliberately leaves open. `--write-baseline` re-freezes the counts, and
-should only be used as part of a deliberate retro-fix.
+ratchet deliberately leaves open. `--write-baseline` re-freezes the counts for
+the `--kind` it was given (the other kind's counts are kept), and should only be
+used as part of a deliberate retro-fix.
+
+`--kind decisions` (#75) applies the same ratchet to `core_decisions_ai.md`,
+where `related_issues: [#188]` breaks YAML the same way `followups: [#107]`
+does. That file is one YAML sequence, so a whole-file load fails at the first
+bad line and reads zero decisions; the checker loads each `- id:` entry on its
+own instead, which is what lets the count fall as entries are repaired and rise
+by exactly one when a bad entry is added. Measured on 2026-10-19: 63 of 235
+entries across the 13 repos, every one of them a bare `#` in a flow list, and
+quoting those lines alone makes all 13 files load whole. New entries quote
+every list item (D-013).
 
 Without pyyaml installed, `audit_phase_a.py` still runs but skips the
 two yaml-dependent checks with a stderr note:

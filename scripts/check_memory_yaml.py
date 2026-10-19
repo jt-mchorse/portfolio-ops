@@ -40,6 +40,18 @@ correct and unmemorable. One rule with no exceptions is a superset of the
 narrow one, so a session applying it cannot be wrong whichever spelling it
 reaches for.
 
+**The same mechanism in the decisions file (#75, D-013).** ``#`` opening an
+item of *any* flow sequence does it, and ``MEMORY/core_decisions_ai.md`` writes
+``related_issues: [#188, #106]`` in every repo. That file is one YAML sequence,
+so ``yaml.safe_load`` stops at the first bad line and a consumer reads zero
+decisions, not "all but a few" -- 12 of 12 code repos and this one were in that
+state when #75 measured it, with ``memory-check`` green on all of them because
+it only asks ``test -f`` and ``grep -q "id: D-001"``. ``--kind decisions``
+ratchets that file the same way: the unit is one ``- id:`` entry, parsed on its
+own, so one bad line costs one entry and the count can move in both directions
+as entries are added or repaired. D-013 extends D-010's rule to it: quote every
+list item, ``related_issues: ["#75"]``.
+
 Exit codes match the portfolio convention `audit_phase_a.py` uses:
 ``0`` within baseline, ``1`` a repo regressed, ``2`` a usage or I/O error.
 """
@@ -86,22 +98,96 @@ def count_unparseable(text: str) -> tuple[int, int, list[str]]:
     return unparseable, total, reasons
 
 
-def load_baseline() -> dict[str, int]:
+# A decision entry opens with `- id:` at column 0. Anything before the first
+# one is the file's comment header, and a `# D-002 superseded` comment between
+# entries rides along with the entry above it, where it is harmless.
+_DECISION = re.compile(r"^(?=- id:)", re.M)
+
+
+def count_unparseable_decisions(text: str) -> tuple[int, int, list[str]]:
+    """Return ``(unparseable, total, reasons)`` for one core_decisions_ai.md.
+
+    Each ``- id:`` entry is loaded on its own (#75). Loading the whole file
+    would report one failure for a file with ten bad entries, and zero entries
+    readable either way, so it could not tell a repo that added a bad entry
+    from one that repaired three.
+    """
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover - exercised by the operator path
+        raise SystemExit(
+            "check_memory_yaml requires pyyaml: pip install -r scripts/requirements.txt"
+        ) from None
+
+    unparseable = 0
+    total = 0
+    reasons: list[str] = []
+    for entry in _DECISION.split(text):
+        if not entry.startswith("- id:"):
+            continue
+        total += 1
+        try:
+            loaded = yaml.safe_load(entry)
+        except Exception as e:  # noqa: BLE001 - any loader failure counts
+            unparseable += 1
+            first = entry.splitlines()[0].strip()
+            reasons.append(f"{first}: {str(e).splitlines()[0].strip()}")
+            continue
+        # An entry that loads, but not as the one-mapping list it is written
+        # as, is not a decision a consumer can read either.
+        if not (
+            isinstance(loaded, list)
+            and len(loaded) == 1
+            and isinstance(loaded[0], dict)
+        ):
+            unparseable += 1
+            reasons.append(f"{entry.splitlines()[0].strip()}: not a single mapping")
+    return unparseable, total, reasons
+
+
+# One entry per --kind: the file it reads, how it counts, and the baseline key
+# it ratchets against. `history` keeps the key #66 shipped, so the committed
+# baseline and every existing invocation mean what they meant.
+KINDS: dict[str, dict[str, Any]] = {
+    "history": {
+        "file": "full_history_ai.md",
+        "count": count_unparseable,
+        "key": "unparseable_by_repo",
+        "unit": "session blocks",
+        "hint": 'Per D-010, write followups as quoted strings: followups: ["#107"].',
+    },
+    "decisions": {
+        "file": "core_decisions_ai.md",
+        "count": count_unparseable_decisions,
+        "key": "unparseable_decisions_by_repo",
+        "unit": "decision entries",
+        "hint": 'Per D-013, quote every list item: related_issues: ["#75"].',
+    },
+}
+
+
+def _read_baseline_file() -> dict[str, Any]:
     if not BASELINE_PATH.exists():
         return {}
     data: Any = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-    return {str(k): int(v) for k, v in data.get("unparseable_by_repo", {}).items()}
+    return data if isinstance(data, dict) else {}
 
 
-def memory_file(root: Path, repo: str) -> Path:
-    """Resolve a repo's history file under a checkout root.
+def load_baseline(kind: str = "history") -> dict[str, int]:
+    data = _read_baseline_file()
+    return {str(k): int(v) for k, v in data.get(KINDS[kind]["key"], {}).items()}
+
+
+def memory_file(root: Path, repo: str, kind: str = "history") -> Path:
+    """Resolve a repo's MEMORY file of one kind under a checkout root.
 
     `portfolio-ops` is cloned beside `repos/` rather than inside it, which is
     the layout the session prompt's Phase A assumes.
     """
+    name = KINDS[kind]["file"]
     if repo == "portfolio-ops":
-        return root / "portfolio-ops" / "MEMORY" / "full_history_ai.md"
-    return root / "repos" / repo / "MEMORY" / "full_history_ai.md"
+        return root / "portfolio-ops" / "MEMORY" / name
+    return root / "repos" / repo / "MEMORY" / name
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,7 +195,8 @@ def main(argv: list[str] | None = None) -> int:
         prog="check_memory_yaml",
         description=(
             "Fail if any repo's count of unparseable MEMORY/full_history_ai.md "
-            "session blocks exceeds its committed baseline (#66)."
+            "session blocks (#66), or with --kind decisions its unparseable "
+            "MEMORY/core_decisions_ai.md entries (#75), exceeds its committed baseline."
         ),
     )
     parser.add_argument(
@@ -123,8 +210,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Limit to one repo (repeatable). Default: every repo in the baseline.",
     )
     parser.add_argument(
+        "--kind",
+        choices=sorted(KINDS),
+        default="history",
+        help="Which MEMORY file to ratchet (default: history, i.e. full_history_ai.md).",
+    )
+    parser.add_argument(
         "--file",
-        help="Check a single full_history_ai.md directly; implies --repo of its repo name.",
+        help="Check a single MEMORY file of --kind directly; implies --repo of its repo name.",
     )
     parser.add_argument(
         "--write-baseline",
@@ -133,7 +226,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    baseline = load_baseline()
+    kind = KINDS[args.kind]
+    baseline = load_baseline(args.kind)
     root = Path(args.root)
 
     if args.file:
@@ -143,9 +237,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         repos = args.repo or sorted(baseline)
         if not repos:
-            print("::error::no baseline and no --repo given; nothing to check", file=sys.stderr)
+            print(
+                "::error::no baseline and no --repo given; nothing to check",
+                file=sys.stderr,
+            )
             return 2
-        paths = {r: memory_file(root, r) for r in repos}
+        paths = {r: memory_file(root, r, args.kind) for r in repos}
 
     counts: dict[str, int] = {}
     regressions: list[str] = []
@@ -154,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         if not path.exists():
             print(f"::error::{path} not found", file=sys.stderr)
             return 2
-        bad, total, reasons = count_unparseable(path.read_text(encoding="utf-8"))
+        bad, total, reasons = kind["count"](path.read_text(encoding="utf-8"))
         counts[repo] = bad
         allowed = baseline.get(repo)
         if allowed is None:
@@ -168,31 +265,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    {reason}", file=sys.stderr)
 
     if args.write_baseline:
-        BASELINE_PATH.write_text(
-            json.dumps(
-                {
-                    "_comment": (
-                        "Unparseable session blocks per repo, frozen by #66. This is a "
-                        "RATCHET: check_memory_yaml.py fails when a count grows, never "
-                        "demanding zero, so the retro-fix decision (#66) stays JT's. "
-                        "Regenerate with --write-baseline only as part of a deliberate "
-                        "retro-fix."
-                    ),
-                    "unparseable_by_repo": dict(sorted(counts.items())),
-                },
-                indent=2,
-                sort_keys=False,
-            )
-            + "\n",
-            encoding="utf-8",
+        # Rewrite only this kind's key. The other kind's frozen counts are
+        # someone else's ratchet and must survive a regeneration of this one.
+        data = _read_baseline_file()
+        data["_comment"] = (
+            "Unparseable MEMORY entries per repo: session blocks in full_history_ai.md "
+            "(frozen by #66) and decision entries in core_decisions_ai.md (frozen by "
+            "#75). This is a RATCHET: check_memory_yaml.py fails when a count grows, "
+            "never demanding zero, so the retro-fix decision (#66, #75) stays JT's. "
+            "Regenerate with --write-baseline only as part of a deliberate retro-fix."
         )
+        data[kind["key"]] = dict(sorted(counts.items()))
+        ordered = {"_comment": data.pop("_comment"), **data}
+        BASELINE_PATH.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {BASELINE_PATH}")
         return 0
 
     if regressions:
         print(
-            f"::error::unparseable MEMORY blocks increased in: {', '.join(regressions)}. "
-            'Per D-010, write followups as quoted strings: followups: ["#107"].',
+            f"::error::unparseable MEMORY {kind['unit']} increased in: "
+            f"{', '.join(regressions)}. {kind['hint']}",
             file=sys.stderr,
         )
         return 1
