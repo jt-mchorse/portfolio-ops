@@ -2585,7 +2585,8 @@ followups: []
 ---
 
 ---
-session: 2026-10-19T08:35Z
+session: 2026-10-19T07:25Z
+duration_min: 5   # computed: plan comment 07:25:10Z -> close comment 07:30:10Z (gh created_at)
 issue: 95
 focus: RESOLVE_MEMORY_CONFLICT_RESOLVED_EACH_GIT_HUNK_AS_A_WHOLE_BLOCK_SO_ONE_ENTRY_SPLIT_INTO_TWO_HUNKS_WAS_GLUED_TO_ITS_NEIGHBOUR_AND_ORPHANED_RC_0
 phase: shipped
@@ -2600,5 +2601,6 @@ context_for_next_session:
   - ALREADY_COMMITTED_IN_7_REPOS_aop_aiapp_ems_lco_leh_rag_vsas_repairing_them_is_a_history_edit_JT_GATED_with_66_75
   - check_memory_yaml_ONLY_SEES_AN_ORPHAN_IF_IT_HAPPENS_TO_CONTAIN_session_colon_eg_context_for_next_session_counting_orphans_is_a_followup_after_94_merges
   - GIT_MERGED_AN_EDIT_TO_THE_LAST_EXISTING_ENTRY_CLEANLY_in_every_shape_I_tried_so_the_both_sides_share_an_entry_refusal_is_pinned_with_hand_built_text
+  - "CORRECTION_TO_THE_75_ENTRY_ABOVE: its session 07:40Z was guessed, not read; the plan comment is 07:17:30Z and the close 07:23:03Z (gh created_at). The branch names 0740/0835 carry the same wrong guesses."
 followups: []
 ---
