@@ -2122,3 +2122,16 @@ fails CI here if the count grows (63 of 235 today). D-013 extends D-010's
 quoting rule to this file. The skill's own template was teaching the broken
 spelling, so new entries kept copying it. Quoting the existing entries is still
 JT's call. 22 new tests; 21 fail on the old script.
+
+## 2026-10-19 — the MEMORY conflict resolver keeps an entry whole when git splits it (#95)
+
+When two sessions append entries that share some lines (`phase: shipped`,
+`delta:`, the same test count), git's default merge aligns those lines and
+leaves them *between* two conflict hunks. The resolver treated each hunk as a
+whole entry, so it cut entry A off after its header, attached A's measurements
+to entry B, and left B's tail as an orphan. It still printed "resolved" and
+exited 0. This had already happened in 7 repos. The resolver now rebuilds both
+whole versions of the file and writes "ours, then theirs' new entries". The old
+special cases for hoisted trailers and diff3 are no longer needed. Repairing
+the damaged entries already committed is a history edit, so it stays JT's
+call. 8 new tests; 7 fail on the old resolver.
