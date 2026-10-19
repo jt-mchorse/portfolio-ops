@@ -251,3 +251,28 @@ it. It's a separate kind because "this job is near its cap" and "these jobs
 can't be checked" are different claims. A workflow that already has a headroom
 finding doesn't get a second line. Latent today: no workflow in the portfolio
 names a job with an expression.
+
+## D-013 — quote every list item in a new decision entry, and ratchet the decisions file (2026-10-19)
+
+D-010 made every `followups` item a quoted string in `full_history_ai.md`,
+because `[#107]` opens a YAML comment and leaves the list unterminated. Its own
+scope line limited it to that key in that file. `core_decisions_ai.md` writes
+`related_issues: [#188]` the same way, and that file is a single YAML list, so
+one such line means a consumer reads **zero** decisions. All 13 repos were in
+that state, and `memory-check` was green on every one of them because it only
+checks that the file exists and contains `id: D-001`.
+
+New decision entries now quote every item of every list
+(`related_issues: ["#75"]`). `check_memory_yaml.py --kind decisions` counts
+unparseable entries one `- id:` at a time against a frozen per-repo baseline
+(63 of 235 today) and fails only if a count grows. That ratchet runs in this
+repo's CI. The cause turned out to be the skill's own template, which spelled
+the list with bare `#`; the canonical template is fixed, but the 12 copies in
+the code repos' `.skills/` are not.
+
+Not decided here: quoting the 63 existing entries, and a hard parse gate in the
+code repos' CI. Both stay JT's call (#75 step 3, handoff §10).
+
+**Reversibility:** Cheap.
+
+**Related issues:** #75, #66

@@ -58,3 +58,9 @@ jobs:
       # Phase A, beside audit_phase_a.py; scripts/README.md documents it.
       - name: MEMORY YAML ratchet
         run: python scripts/check_memory_yaml.py --file MEMORY/full_history_ai.md --repo portfolio-ops
+      # Same ratchet over the decisions file (#75, D-013). `test -f` and the
+      # `grep -q "id: D-001"` above both pass on a file YAML cannot load, which
+      # is how all 13 repos' core_decisions_ai.md went unloadable with this job
+      # green. Counted per `- id:` entry, baseline in memory_yaml_baseline.json.
+      - name: MEMORY decisions YAML ratchet
+        run: python scripts/check_memory_yaml.py --kind decisions --file MEMORY/core_decisions_ai.md --repo portfolio-ops

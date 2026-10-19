@@ -2566,3 +2566,20 @@ context_for_next_session:
   - LATENT_UNTIL_ops_17_trending_weekly_dies_at_the_scan_step_before_prune_runs
 followups: []
 ---
+
+---
+session: 2026-10-19T07:40Z
+issue: 75
+focus: CORE_DECISIONS_AI_MD_UNLOADABLE_IN_13_OF_13_REPOS_RATCHET_IT_PER_ENTRY_AND_EXTEND_D_010_TO_ITS_LISTS
+phase: shipped
+delta:
+  files_changed: 6
+  tests_added: 22
+  suite: "340 -> 362 green"
+decisions_made: ["D-013"]
+measured: "63 of 235 decision entries unparseable across 13 repos (origin/main); quoting fixes all 13 whole-file. Revert probe: 21 of 22 new arms red; the green one is the default-kind-is-history control."
+context_for_next_session:
+  - THE_SKILL_TEMPLATE_WAS_THE_CAUSE_related_issues_bracket_hash_NN_and_12_code_repos_carry_a_dot_skills_copy_still_teaching_it
+  - FOUND_WHILE_MEASURING_THE_HISTORY_RATCHET_HAS_REGRESSED_IN_7_REPOS_FROM_A_DIFFERENT_MECHANISM_split_session_blocks_with_orphaned_tails_NOT_the_followups_hash_FILED_SEPARATELY
+followups: []
+---

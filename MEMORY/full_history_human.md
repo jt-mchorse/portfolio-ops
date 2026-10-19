@@ -2111,3 +2111,14 @@ only an accepted close. A refused listing or close makes the run exit 1, and a
 refused label or comment after a successful close is a warning. This is latent
 until the trending secret (#17) is configured, because the weekly workflow fails
 before this step. 6 new tests.
+
+## 2026-10-19 — the decisions file gets the same YAML ratchet as the history file (#75)
+
+`core_decisions_ai.md` couldn't be loaded as YAML in any of the 13 repos,
+because `related_issues: [#188]` starts a YAML comment in the middle of a list.
+It is one big list, so a single bad line means nothing in it can be read.
+`check_memory_yaml.py --kind decisions` now counts bad entries per repo and
+fails CI here if the count grows (63 of 235 today). D-013 extends D-010's
+quoting rule to this file. The skill's own template was teaching the broken
+spelling, so new entries kept copying it. Quoting the existing entries is still
+JT's call. 22 new tests; 21 fail on the old script.
