@@ -2135,3 +2135,12 @@ whole versions of the file and writes "ours, then theirs' new entries". The old
 special cases for hoisted trailers and diff3 are no longer needed. Repairing
 the damaged entries already committed is a history edit, so it stays JT's
 call. 8 new tests; 7 fail on the old resolver.
+
+## 2026-10-19 — the history ratchet sees orphaned fragments (#97)
+
+`check_memory_yaml.py` only looked at fenced sections containing the text
+`session:`. That meant the orphaned tails #95's resolver bug left behind were
+invisible unless they happened to contain `context_for_next_session:`. Every
+non-comment fenced section now counts, and one that isn't a session entry is
+unparseable. Two more damaged fragments show up (one in aiapp, one in vsas);
+this repo's own count doesn't change. 5 new tests.

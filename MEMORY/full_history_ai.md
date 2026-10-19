@@ -2604,3 +2604,19 @@ context_for_next_session:
   - "CORRECTION_TO_THE_75_ENTRY_ABOVE: its session 07:40Z was guessed, not read; the plan comment is 07:17:30Z and the close 07:23:03Z (gh created_at). The branch names 0740/0835 carry the same wrong guesses."
 followups: []
 ---
+
+---
+session: 2026-10-19T07:35Z
+issue: 97
+focus: HISTORY_RATCHET_COUNTED_A_CHUNK_ONLY_IF_IT_CONTAINED_THE_SUBSTRING_session_SO_AN_ORPHANED_TAIL_READ_AS_CLEAN
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 5
+  suite: "370 -> 375 green"
+decisions_made: []
+measured: "origin/main all 13 repos: only aiapp (6 -> 7, an orphaned followups-only fragment) and vsas (5 -> 6, a duration_min fragment with no session key) move; this repo stays 6. Revert probe: 2 of 5 new arms red; the 3 green are controls (counted-once, comment/header excluded, fence-less entry)."
+context_for_next_session:
+  - A_FILTER_ON_A_SUBSTRING_OF_THE_THING_IT_IS_LOOKING_FOR_HIDES_EXACTLY_THE_DAMAGED_INSTANCES
+followups: []
+---
