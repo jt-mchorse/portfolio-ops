@@ -2620,3 +2620,20 @@ context_for_next_session:
   - A_FILTER_ON_A_SUBSTRING_OF_THE_THING_IT_IS_LOOKING_FOR_HIDES_EXACTLY_THE_DAMAGED_INSTANCES
 followups: []
 ---
+
+---
+session: 2026-10-19T07:38Z
+issue: 99
+focus: TRENDING_SCAN_CAP_AND_DEDUPE_READS_TREATED_A_REFUSED_GH_READ_AS_NONE_SO_THEY_FAILED_OPEN_AT_RC_0
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 12
+  suite: "375 -> 387 green"
+decisions_made: []
+measured: "monkeypatched gh, every GET 403 and POST 201: cap read 0/30, dedupe set(), a title already filed was filed again, rc 0. After: rc 1 with no POST. Revert probe: 6 of 12 new arms red; the 6 green are controls (search ok, fallback ok, empty page, page-2 duplicate skipped, new title filed)."
+context_for_next_session:
+  - CLOSES_THE_SIBLING_92_RECORDED_every_gh_read_that_guards_a_write_in_ops_now_fails_closed
+  - NOT_DONE_a_URLError_from_gh_is_still_a_traceback_loud_not_silent
+followups: []
+---
