@@ -243,3 +243,42 @@ def test_the_baseline_explains_itself() -> None:
     data = json.loads(BASELINE.read_text(encoding="utf-8"))
     assert "RATCHET" in data["_comment"]
     assert "#66" in data["_comment"]
+
+
+# ----------------------------------------------------------------------
+# Orphaned fragments (#97)
+# ----------------------------------------------------------------------
+
+ORPHAN_NO_SESSION = '---\n  suite: "B suite"\ndecisions_made: []\nmeasured: "m"\nfollowups: []\n---\n'
+ORPHAN_TRAILER_ONLY = "---\nfollowups: []\n---\n"
+
+
+def test_an_orphaned_tail_without_the_session_substring_is_counted() -> None:
+    """The shape #95's per-hunk resolution left in aiapp: before #97 a chunk
+    counted only if `session:` appeared anywhere in it, so this read as clean."""
+    for orphan in (ORPHAN_NO_SESSION, ORPHAN_TRAILER_ONLY):
+        bad, total, reasons = count_unparseable(_block("[]") + "\n" + orphan)
+        assert (bad, total) == (1, 2), orphan
+        assert reasons
+
+
+def test_an_orphan_that_loads_as_a_mapping_is_still_not_a_session() -> None:
+    """`followups: []` alone is valid YAML; it is still no session entry."""
+    bad, _, reasons = count_unparseable(_block("[]") + "\n" + ORPHAN_TRAILER_ONLY)
+    assert bad == 1
+    assert "no session key" in reasons[0]
+
+
+def test_an_orphan_carrying_context_for_next_session_counts_once() -> None:
+    """The orphans the old substring rule did see must not be double-counted."""
+    orphan = '---\n  suite: "x"\ncontext_for_next_session:\n  - A\nfollowups: []\n---\n'
+    assert count_unparseable(_block("[]") + "\n" + orphan)[:2] == (1, 2)
+
+
+def test_a_comment_only_chunk_and_the_prose_header_are_not_blocks() -> None:
+    text = "# Full history\n\nProse header.\n\n" + _block("[]") + "\n---\n# a note\n\n---\n"
+    assert count_unparseable(text)[:2] == (0, 1)
+
+
+def test_a_fence_less_session_entry_is_still_counted() -> None:
+    assert count_unparseable("session: x\nfollowups: [#1]\n")[:2] == (1, 1)

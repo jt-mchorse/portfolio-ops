@@ -86,16 +86,42 @@ def count_unparseable(text: str) -> tuple[int, int, list[str]]:
     unparseable = 0
     total = 0
     reasons: list[str] = []
-    for block in _FENCE.split(text):
-        if "session:" not in block:
+    for i, block in enumerate(_FENCE.split(text)):
+        if not _is_block(block, header=i == 0):
             continue
         total += 1
         try:
-            yaml.safe_load(block)
+            loaded = yaml.safe_load(block)
         except Exception as e:  # noqa: BLE001 - any loader failure counts
             unparseable += 1
             reasons.append(str(e).splitlines()[0].strip())
+            continue
+        if not (isinstance(loaded, dict) and "session" in loaded):
+            # Loads, but is not a session entry: an orphaned tail such as the
+            # ones #95's per-hunk resolution left behind.
+            unparseable += 1
+            first = next(ln for ln in block.splitlines() if _is_content(ln))
+            reasons.append(f"fenced fragment with no session key: {first.strip()[:60]}")
     return unparseable, total, reasons
+
+
+def _is_content(line: str) -> bool:
+    return bool(line.strip()) and not line.lstrip().startswith("#")
+
+
+def _is_block(chunk: str, *, header: bool) -> bool:
+    """Is this fenced chunk an entry the ratchet must account for? (#97)
+
+    Until #97 a chunk counted only if the substring ``session:`` appeared
+    anywhere in it, so an orphaned fragment was invisible unless it happened
+    to carry ``context_for_next_session:``. Now every chunk with a
+    non-comment line counts, except the file's own prose header before the
+    first fence -- which counts only if it is itself a session entry, the
+    shape a fence-less file (or fixture) has.
+    """
+    if header:
+        return re.search(r"^session:", chunk, re.M) is not None
+    return any(_is_content(ln) for ln in chunk.splitlines())
 
 
 # A decision entry opens with `- id:` at column 0. Anything before the first
