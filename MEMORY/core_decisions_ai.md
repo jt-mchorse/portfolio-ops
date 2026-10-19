@@ -130,3 +130,16 @@
   reversibility: cheap
   related_issues: ["#84", "#76"]
   superseded_by: null
+
+- id: D-013
+  date: 2026-10-19
+  decision: D_010s_quote_every_item_rule_EXTENDS_to_every_list_in_a_NEW_core_decisions_ai_md_entry_and_check_memory_yaml_ratchets_that_file_per_dash_id_entry
+  rationale: related_issues_bracket_hash_188_is_the_same_unterminated_flow_sequence_D_010_settled_for_followups_and_core_decisions_ai_md_is_ONE_yaml_sequence_so_the_first_bad_line_makes_a_consumer_read_ZERO_decisions_all_13_repos_were_in_that_state_with_memory_check_green
+  scope: new_entries_only_the_retro_quoting_of_the_existing_63_entries_and_a_hard_parse_gate_in_the_12_code_repos_memory_check_remain_JT_gated_per_75_step_3_and_handoff_section_10
+  unit: one_dash_id_entry_loaded_on_its_own_because_a_whole_file_load_says_broken_for_one_bad_entry_and_for_ten_so_it_could_neither_see_a_new_bad_entry_nor_credit_a_repair
+  measured: "2026-10-19 origin/main of all 13 repos: 63 of 235 entries unparseable, every one a bare # opening a flow-list item; quoting those lines alone makes all 13 files yaml.safe_load whole, and per-entry counts go to 0, so the per-entry split agrees with a whole-file load."
+  cause_found: "the portfolio-memory SKILL's own decision template read related_issues: [#NN, #NN], and every code repo carries a copy under .skills/; the canonical copy is fixed here, the 12 copies are not"
+  alternatives_rejected: ["whole_file_parse_gate_now_REJECTED_red_in_13_of_13_until_the_JT_gated_retro_fix", "quote_only_related_issues_REJECTED_alternatives_rejected_items_can_open_with_hash_too_and_one_rule_for_every_list_is_the_D_010_reasoning", "count_offending_lines_REJECTED_a_line_is_not_what_a_consumer_loses_an_entry_is"]
+  reversibility: cheap
+  related_issues: ["#75", "#66"]
+  superseded_by: null
