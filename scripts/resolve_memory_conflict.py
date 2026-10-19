@@ -52,6 +52,14 @@ Conflict shapes handled:
     also does no common-line hoisting, so each side is already a complete
     `---`...`---` block and is concatenated as-is.
 
+  Several hunks for one appended entry (#95), either file:
+    git's default merge aligns lines the two appended entries SHARE (`delta:`,
+    `  files_changed: 2`, a repeated prose line) and leaves them between two
+    hunks. The shapes above are therefore not resolved hunk by hunk: both whole
+    sides are rebuilt from the conflict text and written as "all of ours, then
+    theirs from the last section break they share". The YAML trailer handling
+    and the diff3 base handling fall out of that without special cases.
+
 Usage:
   python scripts/resolve_memory_conflict.py <repo-path>
   python scripts/resolve_memory_conflict.py <repo-path> --dry-run
@@ -98,65 +106,137 @@ def _sides(m: re.Match[str]) -> tuple[str, str]:
     return m.group(1), m.group(3)
 
 
-#: Trailer lines git may hoist out of the conflict region, followed by the
-#: block's `---` closer. Captured so the ACTUAL hoisted text is reattached to
-#: block_a rather than a hardcoded guess (#65).
-HOISTED_TRAILER = re.compile(
-    r"\A((?:(?:decisions_made|followups):[^\n]*\n)+)---\n",
-)
-
 #: A session block must carry exactly one of each. Used by the shape guard.
 TRAILER_KEYS = ("decisions_made:", "followups:")
+
+
+def _two_sides(text: str) -> tuple[str, str]:
+    """Rebuild the two whole files git merged: (ours, theirs).
+
+    *Ours* takes side A of every conflict hunk, *theirs* side B, and both keep
+    every line git left outside the markers. Done for the whole file at once,
+    because git's hunks are not blocks (#95): the default merge aligns any line
+    the two appended blocks happen to share -- `phase: shipped`, `delta:`,
+    `  files_changed: 2` -- and leaves it BETWEEN two hunks, so one appended
+    block arrives as two hunks with common lines in the middle. Resolving each
+    hunk as if it were a whole block split block A after its header, glued A's
+    tail onto B's header, and orphaned B's tail, with rc 0 (lco#309, and six
+    other repos the same week).
+    """
+    ours: list[str] = []
+    theirs: list[str] = []
+    pos = 0
+    for m in CONFLICT.finditer(text):
+        a, b = _sides(m)
+        common = text[pos : m.start()]
+        ours += [common, a, "\n"]
+        theirs += [common, b, "\n"]
+        pos = m.end()
+    tail = text[pos:]
+    return "".join(ours) + tail, "".join(theirs) + tail
+
+
+def _yaml_break(lines: list[str], k: int) -> bool:
+    """A blank line followed by a `---` opener: where a session block begins."""
+    return k + 1 < len(lines) and lines[k] == "\n" and lines[k + 1] == "---\n"
+
+
+def _md_break(lines: list[str], k: int) -> bool:
+    """A blank line followed by a `## ` heading: where a prose section begins."""
+    return k + 1 < len(lines) and lines[k] == "\n" and lines[k + 1].startswith("## ")
+
+
+def _paragraph_break(lines: list[str], k: int) -> bool:
+    """A blank line followed by text: the prose file's fallback section start,
+    for a file (or a hand-rolled fixture) whose entries carry no heading."""
+    return k + 1 < len(lines) and lines[k] == "\n" and lines[k + 1].strip() != ""
+
+
+def _sections(lines: list[str], is_break) -> list[str]:
+    """Split lines into sections at each break; used to compare two tails."""
+    out: list[str] = []
+    cur: list[str] = []
+    for k, line in enumerate(lines):
+        if is_break(lines, k) and cur:
+            out.append("".join(cur))
+            cur = []
+        cur.append(line)
+    if cur:
+        out.append("".join(cur))
+    return [sec for sec in out if sec.strip()]
+
+
+def _keep_both(text: str, is_break, fallback=None, *, prose: bool = False) -> str:
+    """Resolve every conflict in `text` as "all of ours, then theirs' new part".
+
+    Append-only means each side is the shared history plus what that side
+    appended. The two whole sides agree up to some line; backing off from there
+    to the last section break BOTH share gives the point where the appended
+    sections start, whatever lines git chose to align inside them. Writing ours
+    in full and then theirs from that break keeps each appended section intact
+    and in order -- upstream's first, then the rebased commit's -- which is what
+    the hunk-by-hunk resolution meant to do and did only for a single hunk.
+
+    Two shapes are refused rather than guessed. No shared break: the file is not
+    a sequence of sections this tool knows. A section present in BOTH tails:
+    the sides share history past the point where they diverge, which means one
+    side edited an existing entry, and keeping both would keep it twice (the
+    default-style blind spot #90 recorded and did not close).
+    """
+    if not CONFLICT.search(text):
+        return text
+    ours, theirs = _two_sides(text)
+    if not ours.endswith("\n"):
+        ours += "\n"
+    o = ours.splitlines(keepends=True)
+    t = theirs.splitlines(keepends=True)
+    p = 0
+    while p < min(len(o), len(t)) and o[p] == t[p]:
+        p += 1
+    k = None
+    for brk in (is_break, fallback):
+        if brk is None:
+            continue
+        k = next((i for i in range(p, -1, -1) if brk(o, i) and brk(t, i)), None)
+        if k is not None:
+            is_break = brk
+            break
+    if k is None and p == 0:
+        # Nothing at all in common: the whole of each side is new.
+        k = 0
+    if k is None:
+        raise RuntimeError(
+            "no section break shared by both sides before they diverge, so the "
+            "appended entries cannot be told apart. Inspect manually."
+        )
+    shared = set(_sections(o[k:], is_break)) & set(_sections(t[k:], is_break))
+    if shared:
+        raise RuntimeError(
+            f"{len(shared)} entr{'y' if len(shared) == 1 else 'ies'} appear on both "
+            "sides after they diverge, so a side edited existing history; that is "
+            "not the append-only shape. Inspect manually."
+        )
+    if prose:
+        # One blank line between sections, however each side ended.
+        return ours.rstrip("\n") + "\n\n" + "".join(t[k:]).lstrip("\n")
+    return ours + "".join(t[k:])
 
 
 def resolve_yaml(text: str) -> str:
     """Resolve YAML conflicts in MEMORY/full_history_ai.md.
 
-    Git hoists the two blocks' **common suffix** out of the conflict region, so
-    whatever trailer lines both sides happened to share sit after the markers
-    and belong to block_b. Block_a needs a copy of exactly those lines, plus its
-    own `---` closer.
-
-    The hoist is line-by-line, which is the subtlety this function got wrong
-    until #65. The trailer was hardcoded as `decisions_made: []` +
-    `followups: []`, which is right only when BOTH sessions recorded nothing --
-    the one case where the whole trailer is common. When a session recorded a
-    decision, only `followups: []` is common; `decisions_made:` differs and
-    stays *inside* the region, still attached to block_a. Appending a hardcoded
-    pair on top of it produced a duplicate key::
-
-        session: A
-        decisions_made: [D-015]      <- what the session recorded
-        decisions_made: []           <- fabricated here
-        followups: []
-
-    and `yaml.safe_load` keeps the LAST duplicate, so the recorded decision
-    silently vanished while the tool printed `resolved:` and exited 0. Measured
-    across four real `git rebase` conflicts, three were malformed; the sound one
-    was the both-empty control. Of the ten session entries written the night
-    this was found, seven had a non-empty trailer -- the tool failed precisely
-    on the entries that were worth writing down.
-
-    Reattaching the *actual* hoisted lines is the whole fix: in the both-empty
-    case they are `decisions_made: []` + `followups: []` and the output is
-    byte-identical to before.
+    Two earlier versions of this function resolved each conflict hunk as one
+    whole block, re-attaching whatever trailer git hoisted after it. Both failed
+    on a shape git really produces. #65: the hoist is line by line, so a
+    hardcoded `decisions_made: []` + `followups: []` duplicated a recorded
+    decision key and YAML kept the fabricated one. #95: git also aligns
+    *interior* lines the two blocks share, so one block can arrive as several
+    hunks, and a per-hunk resolution splits it. `_keep_both` never reads hunk
+    boundaries as block boundaries, so neither the hoisted trailer nor the
+    aligned interior needs a special case: both are common lines, present in
+    both rebuilt sides.
     """
-
-    def repl(m: re.Match[str]) -> str:
-        a, b = _sides(m)
-        hoisted = HOISTED_TRAILER.match(m.string[m.end() :])
-        if hoisted is None:
-            if a.rsplit("\n", 1)[-1] == "---":
-                # diff3 hoists nothing, not even the `---` closers: each side is
-                # already a whole block, and adding separators would put an
-                # empty document between them (#90).
-                return f"{a}\n{b}\n"
-            # Nothing was hoisted: the two trailers differed entirely, so each
-            # block already carries its own and only the separators are needed.
-            return f"{a}\n---\n\n---\n{b}\n"
-        return f"{a}\n{hoisted.group(1)}---\n\n---\n{b}\n"
-
-    return CONFLICT.sub(repl, text)
+    return _keep_both(text, _yaml_break)
 
 
 def count_duplicated_trailers(text: str) -> int:
@@ -230,15 +310,11 @@ def check_block_shape(text: str, path: Path, *, before: int = 0) -> None:
 def resolve_md(text: str) -> str:
     """Resolve Markdown conflicts in MEMORY/full_history_human.md.
 
-    Simple concatenation with a blank line between blocks. No trailer.
+    Same whole-side resolution as the YAML file, with a `## ` heading as the
+    section start: two prose sections that share a paragraph line split into
+    hunks exactly the way two YAML blocks sharing `delta:` do (#95).
     """
-
-    def repl(m: re.Match[str]) -> str:
-        a, b = _sides(m)
-        # diff3 leaves each side's leading blank line inside the region.
-        return f"{a}\n\n{b.lstrip(chr(10))}\n"
-
-    return CONFLICT.sub(repl, text)
+    return _keep_both(text, _md_break, _paragraph_break, prose=True)
 
 
 def _process(path: Path, resolver, dry_run: bool) -> bool:

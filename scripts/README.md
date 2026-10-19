@@ -12,7 +12,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
 | `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks, and with `--kind decisions` on unparseable `MEMORY/core_decisions_ai.md` entries. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010, #75, D-013 |
-| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Reattaches the trailer git hoisted, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. | #11, #23, #25, #65, #90 |
+| `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Rebuilds both whole sides and writes ours, then theirs from the last section break they share, so an entry git split into several hunks stays whole (#95) and a hoisted trailer needs no special case. Refuses an entry present on both sides after they diverge, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. | #11, #23, #25, #65, #90, #95 |
 
 ## Local-runner setup
 

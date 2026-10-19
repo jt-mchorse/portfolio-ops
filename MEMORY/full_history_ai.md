@@ -2583,3 +2583,24 @@ context_for_next_session:
   - FOUND_WHILE_MEASURING_THE_HISTORY_RATCHET_HAS_REGRESSED_IN_7_REPOS_FROM_A_DIFFERENT_MECHANISM_split_session_blocks_with_orphaned_tails_NOT_the_followups_hash_FILED_SEPARATELY
 followups: []
 ---
+
+---
+session: 2026-10-19T07:25Z
+duration_min: 5   # computed: plan comment 07:25:10Z -> close comment 07:30:10Z (gh created_at)
+issue: 95
+focus: RESOLVE_MEMORY_CONFLICT_RESOLVED_EACH_GIT_HUNK_AS_A_WHOLE_BLOCK_SO_ONE_ENTRY_SPLIT_INTO_TWO_HUNKS_WAS_GLUED_TO_ITS_NEIGHBOUR_AND_ORPHANED_RC_0
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 8
+  suite: "340 -> 348 green"
+decisions_made: []
+measured: "real git rebase, default style: two appended blocks sharing phase/delta/files_changed/tests_added -> 2 hunks; old resolver wrote A's header, then B's header over A's body, then an orphaned B tail, rc 0, and check_memory_yaml counted it 0 unparseable. Revert probe: 7 of 8 new arms red; the green one is the premise check that git really emits 2 hunks."
+context_for_next_session:
+  - GIT_HUNKS_ARE_NOT_BLOCKS_the_default_merge_aligns_interior_lines_two_appended_entries_share_so_never_resolve_per_hunk_rebuild_both_whole_sides
+  - ALREADY_COMMITTED_IN_7_REPOS_aop_aiapp_ems_lco_leh_rag_vsas_repairing_them_is_a_history_edit_JT_GATED_with_66_75
+  - check_memory_yaml_ONLY_SEES_AN_ORPHAN_IF_IT_HAPPENS_TO_CONTAIN_session_colon_eg_context_for_next_session_counting_orphans_is_a_followup_after_94_merges
+  - GIT_MERGED_AN_EDIT_TO_THE_LAST_EXISTING_ENTRY_CLEANLY_in_every_shape_I_tried_so_the_both_sides_share_an_entry_refusal_is_pinned_with_hand_built_text
+  - "CORRECTION_TO_THE_75_ENTRY_ABOVE: its session 07:40Z was guessed, not read; the plan comment is 07:17:30Z and the close 07:23:03Z (gh created_at). The branch names 0740/0835 carry the same wrong guesses."
+followups: []
+---
