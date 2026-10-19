@@ -125,19 +125,34 @@ def gh(method: str, path: str, body: Any = None) -> tuple[int, Any]:
             return e.code, {"raw": body_txt}
 
 
+class GitHubReadError(RuntimeError):
+    """A read that guards a write was refused (#99).
+
+    `gh()` returns `(status, body)` and only raises on a transport error, so a
+    403/401/5xx used to read as "nothing there": the cap check counted 0 and the
+    dedupe saw no titles, and the run filed past both at exit 0. Every read the
+    cap or the dedupe depends on raises this instead.
+    """
+
+
 def count_open_trending_issues(repos: list[str]) -> int:
     # GitHub's search API is the fast path.
     q = f"is:issue is:open label:trending user:{REPO_OWNER}"
     encoded = urllib.parse.quote(q)
     code, body = gh("GET", f"/search/issues?q={encoded}&per_page=1")
-    if code == 200:
-        return body.get("total_count", 0)
-    # Fallback: per-repo enumeration
+    if code == 200 and isinstance(body, dict) and isinstance(body.get("total_count"), int):
+        return body["total_count"]
+    # Fallback: per-repo enumeration. A refused repo makes the total a lower
+    # bound, which cannot prove the run is under the cap, so it is an error.
     total = 0
     for r in repos:
         c, b = gh("GET", f"/repos/{REPO_OWNER}/{r}/issues?state=open&labels=trending&per_page=100")
-        if c == 200 and isinstance(b, list):
-            total += len(b)
+        if c != 200 or not isinstance(b, list):
+            raise GitHubReadError(
+                f"cannot count open trending issues: search returned {code} and "
+                f"listing {r} returned {c}"
+            )
+        total += len(b)
     return total
 
 
@@ -146,7 +161,12 @@ def existing_issue_titles(repo: str) -> set[str]:
     page = 1
     while True:
         c, b = gh("GET", f"/repos/{REPO_OWNER}/{repo}/issues?state=all&per_page=100&page={page}&labels=trending")
-        if c != 200 or not isinstance(b, list) or not b:
+        if c != 200 or not isinstance(b, list):
+            # A partial set would let a title on the unread page through.
+            raise GitHubReadError(
+                f"cannot read existing trending titles in {repo}: page {page} returned {c}"
+            )
+        if not b:
             break
         for issue in b:
             if "pull_request" in issue:
@@ -468,8 +488,12 @@ def main() -> int:
 
     print(f"trending-scan mode={args.mode} max_issues={args.max_issues}")
 
-    # Cap check
-    current = count_open_trending_issues(ALL_REPOS)
+    # Cap check. Fails closed (#99): no count, no filing -- and no Claude calls.
+    try:
+        current = count_open_trending_issues(ALL_REPOS)
+    except GitHubReadError as e:
+        print(f"::error::{e}; refusing to file without a verified cap", file=sys.stderr)
+        return 1
     print(f"open trending issues across portfolio: {current}/{TRENDING_CAP}")
     if current >= TRENDING_CAP:
         print("at cap — skipping new issue filing", file=sys.stderr)
@@ -487,6 +511,7 @@ def main() -> int:
     findings = findings[:MAX_FINDINGS_PER_RUN]
 
     filed = []
+    read_failures = 0
     for finding in findings:
         if len(filed) >= remaining_budget:
             print(f"hit budget {remaining_budget}; stopping")
@@ -502,7 +527,12 @@ def main() -> int:
 
         # Dedupe by title in target repo
         if not args.dry_run:
-            existing = existing_issue_titles(target)
+            try:
+                existing = existing_issue_titles(target)
+            except GitHubReadError as e:
+                print(f"::error::{e}; not filing {result['title']!r} unchecked", file=sys.stderr)
+                read_failures += 1
+                continue
             proposed = f"[trending] {result['title']}"
             if proposed in existing:
                 print(f"[skip] duplicate title in {target}: {proposed!r}")
@@ -519,6 +549,9 @@ def main() -> int:
         time.sleep(0.5)
 
     print(f"done — filed {len(filed)} issues this run")
+    if read_failures:
+        print(f"::error::{read_failures} finding(s) skipped: dedupe read refused", file=sys.stderr)
+        return 1
     return 0
 
 

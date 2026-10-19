@@ -2144,3 +2144,14 @@ invisible unless they happened to contain `context_for_next_session:`. Every
 non-comment fenced section now counts, and one that isn't a session entry is
 unparseable. Two more damaged fragments show up (one in aiapp, one in vsas);
 this repo's own count doesn't change. 5 new tests.
+
+## 2026-10-19 — the trending scan refuses to file when it can't read the cap or the dedupe (#99)
+
+Before filing, the trending scan reads GitHub twice: once to count open
+trending issues (the cap) and once to list existing titles (to avoid
+duplicates). Both read a refused call (403, 401, 5xx) as "nothing there", so a
+rate-limited run would have filed past the cap and filed duplicates at exit 0.
+A refused cap read now stops the run at exit 1 before anything is evaluated. A
+refused title read skips that finding and makes the run exit 1. This is the
+sibling the #92 session wrote down and left. It is latent until the trending
+secret (#17) is configured. 12 new tests.
