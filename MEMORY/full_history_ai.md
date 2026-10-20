@@ -2655,3 +2655,21 @@ context_for_next_session:
   - TEST_FILE_HAS_4_PREEXISTING_ruff_format_HUNKS_AT_DEFAULT_WIDTH_ruff_IS_NOT_IN_THIS_REPOS_CI
 followups: []
 ---
+
+---
+session: 2026-10-20T08:08Z
+issue: 101
+focus: RESOLVER_REGEX_NEEDED_A_LINE_ON_EACH_SIDE_SO_A_ONE_SIDED_HUNK_WAS_REFUSED_OR_SKIPPED_AND_THE_AI_FILE_WAS_WRITTEN_BEFORE_THE_PROSE_FILE_WAS_CHECKED
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 9
+  suite: "387 -> 396 green"
+decisions_made: []
+measured: "real git rebase on origin/main 69e015a: measured: on one side only -> rc 1 markers remain (A side and B side); 3 hunks with 2 one-sided -> rc 1; prose heading hunk + one-sided paragraph -> rc 1 with the ai file already written; a LONE one-sided prose hunk -> rc 0 with its markers left in the file. After: all rc 0 and == base + A + B. Revert probe: 7 of 9 new arms red; the 2 green are controls (git really emits an empty side; a refused ai file was already atomic)."
+context_for_next_session:
+  - A_REGEX_THAT_GATES_WHETHER_A_FILE_IS_PROCESSED_AT_ALL_FAILS_OPEN_a_shape_it_cannot_match_is_skipped_as_clean_not_refused
+  - "CORRECTION_TO_THE_95_ENTRY: git does NOT always merge an edit to the last existing entry cleanly; an edit to the prose file's last line beside two appends conflicts under default merge and is resolved by writing the entry twice at rc 0 (#104)"
+  - NOT_DONE_a_marker_line_left_after_no_CONFLICT_match_is_still_not_refused_it_needs_to_tell_a_broken_hunk_from_25s_prose
+followups: ["#104"]
+---

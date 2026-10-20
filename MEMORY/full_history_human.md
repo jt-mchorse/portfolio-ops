@@ -2167,3 +2167,15 @@ tests now pass `--repo` as well. The checker also takes the name from the git
 `origin` URL first and falls back to the folder name only when there is no
 origin. That also fixes it for the worktrees under `repos/`. 11 new tests; 8
 fail on the old checker.
+
+## 2026-10-20 — the resolver handles a one-sided conflict hunk (#101)
+
+When two appended entries share every line around a key only one of them has
+(`measured:` on one side, for example), git puts that key in a hunk whose other
+side is empty. The resolver's pattern needed a line on both sides. A one-sided
+hunk next to a normal one was refused, and a one-sided hunk on its own wasn't
+recognised as a conflict, so the file kept its markers and the run exited 0.
+Each side may now be empty. Both MEMORY files are also resolved and checked
+before either is written, so a refusal no longer leaves one file resolved and
+the other not. While reproducing it I found that an edit to the last existing
+entry can be written twice (#104, filed and not fixed here). 9 new tests.
