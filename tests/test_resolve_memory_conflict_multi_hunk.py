@@ -74,6 +74,8 @@ def _rebase_conflict(
     ai_base: str = AI_BASE,
     md_base: str = MD_BASE,
     main_edits_base: str | None = None,
+    main_edits_md_base: str | None = None,
+    style: str = "merge",
 ) -> Path:
     """main appends ai[0]/md[0]; the branch appends ai[1]/md[1]; rebase the branch."""
     repo = tmp_path
@@ -82,7 +84,7 @@ def _rebase_conflict(
     _git(repo, "init", "-q", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "t")
-    _git(repo, "config", "merge.conflictStyle", "merge")
+    _git(repo, "config", "merge.conflictStyle", style)
     (mem / "full_history_ai.md").write_text(ai_base)
     (mem / "full_history_human.md").write_text(md_base)
     _git(repo, "add", ".")
@@ -94,7 +96,8 @@ def _rebase_conflict(
     _git(repo, "checkout", "-q", "main")
     main_ai = main_edits_base if main_edits_base is not None else ai_base
     (mem / "full_history_ai.md").write_text(main_ai + ai[0])
-    (mem / "full_history_human.md").write_text(md_base + md[0])
+    main_md = main_edits_md_base if main_edits_md_base is not None else md_base
+    (mem / "full_history_human.md").write_text(main_md + md[0])
     _git(repo, "commit", "-qam", "A")
     _git(repo, "checkout", "-q", "side")
     _git(repo, "rebase", "main")
@@ -231,3 +234,168 @@ def test_the_resolved_file_round_trips_through_git(tmp_path: Path, mod) -> None:
     )
     assert cont.returncode == 0, cont.stderr
     assert _git(repo, "show", "HEAD:MEMORY/full_history_ai.md").stdout == AI_BASE + a + b
+
+
+# ----------------------------------------------------------------------
+# One-sided hunks (#101)
+# ----------------------------------------------------------------------
+#
+# When the two appended entries share every line around a key only one of them
+# has, git leaves that key in a hunk whose other side is EMPTY. The conflict
+# regex needed a line on each side, so a one-sided hunk beside a matching one
+# was refused ("markers remain"), and a lone one was skipped with its markers
+# left in the file and rc 0.
+
+
+def _without_measured(block: str) -> str:
+    return re.sub(r'^measured: "[^"]*"\n', "", block, flags=re.M)
+
+
+def _has_empty_side(text: str) -> bool:
+    return bool(re.search(r"^<<<<<<< HEAD\n=======\n|^=======\n>>>>>>> ", text, flags=re.M))
+
+
+def test_git_really_emits_a_one_sided_hunk(tmp_path: Path) -> None:
+    """Premise check (control): without a real empty side, the arms below would
+    pass for a reason that has nothing to do with #101."""
+    a = _ai_block("A", 306, "s")
+    b = _without_measured(_ai_block("B", 306, "s"))
+    repo = _rebase_conflict(tmp_path, (a, b))
+    text = (repo / "MEMORY" / "full_history_ai.md").read_text()
+    assert _hunks(text) == 2
+    assert _has_empty_side(text)
+
+
+def test_a_key_only_a_has_is_kept(tmp_path: Path, mod) -> None:
+    a = _ai_block("A", 306, "s")
+    b = _without_measured(_ai_block("B", 306, "s"))
+    repo = _rebase_conflict(tmp_path, (a, b))
+    assert mod.main([str(repo)]) == 0
+    text = (repo / "MEMORY" / "full_history_ai.md").read_text()
+    assert text == AI_BASE + a + b
+    assert [x.get("measured") for x in _blocks(text)[1:]] == ["measured 306", None]
+
+
+def test_a_key_only_b_has_is_kept(tmp_path: Path, mod) -> None:
+    a = _without_measured(_ai_block("A", 306, "s"))
+    b = _ai_block("B", 306, "s")
+    repo = _rebase_conflict(tmp_path, (a, b))
+    assert _has_empty_side((repo / "MEMORY" / "full_history_ai.md").read_text())
+    assert mod.main([str(repo)]) == 0
+    text = (repo / "MEMORY" / "full_history_ai.md").read_text()
+    assert text == AI_BASE + a + b
+    assert [x.get("measured") for x in _blocks(text)[1:]] == [None, "measured 306"]
+
+
+def test_three_hunks_two_of_them_one_sided(tmp_path: Path, mod) -> None:
+    """A two-sided header hunk, then a key only B has, then a key only A has.
+    Each pair of changes needs a few shared lines between them, or git
+    coalesces the hunks."""
+    measured = 'measured: "measured 306"\n'
+    a = _ai_block("A", 306, "s").replace(measured, measured + "only_a: 1\n")
+    b = _ai_block("B", 306, "s").replace("  files_changed: 2\n", "  files_changed: 2\n  only_b: 2\n")
+    repo = _rebase_conflict(tmp_path, (a, b))
+    ai = repo / "MEMORY" / "full_history_ai.md"
+    assert _hunks(ai.read_text()) == 3
+    assert mod.main([str(repo)]) == 0
+    text = ai.read_text()
+    assert text == AI_BASE + a + b
+    blocks = _blocks(text)[1:]
+    assert (blocks[0]["only_a"], "only_b" in blocks[0]["delta"]) == (1, False)
+    assert (blocks[1]["delta"]["only_b"], "only_a" in blocks[1]) == (2, False)
+
+
+def test_a_prose_paragraph_only_a_has_resolves_both_files(tmp_path: Path, mod) -> None:
+    """The issue's half-resolved repro: a two-sided heading hunk, then a one-sided
+    paragraph hunk. The YAML file used to be written before the prose file was
+    refused."""
+    shared = "Shared opening.\nThe suite is green.\nRuff is clean.\n\n"
+    a_md = f"\n## A\n\n{shared}A paragraph only A has.\n\nShared closing.\n"
+    b_md = f"\n## B\n\n{shared}Shared closing.\n"
+    a = _ai_block("A", 306, "A suite", extra="duration_min: 10\n")
+    b = _ai_block("B", 308, "B suite")
+    repo = _rebase_conflict(tmp_path, (a, b), (a_md, b_md))
+    human = repo / "MEMORY" / "full_history_human.md"
+    assert _hunks(human.read_text()) == 2 and _has_empty_side(human.read_text())
+    assert mod.main([str(repo)]) == 0
+    assert (repo / "MEMORY" / "full_history_ai.md").read_text() == AI_BASE + a + b
+    assert human.read_text() == MD_BASE + a_md + b_md
+
+
+def test_a_lone_one_sided_prose_hunk_is_not_skipped(tmp_path: Path, mod) -> None:
+    """Two sections with the same heading: the only hunk is one-sided. The old
+    regex did not match it at all, so the file was skipped as conflict-free and
+    kept its markers while the run exited 0."""
+    a_md = "\n## S\n\nShared opening.\n\nA paragraph only A has.\n\nShared closing.\n"
+    b_md = "\n## S\n\nShared opening.\n\nShared closing.\n"
+    repo = _rebase_conflict(tmp_path, ("", ""), (a_md, b_md))
+    human = repo / "MEMORY" / "full_history_human.md"
+    assert _hunks(human.read_text()) == 1 and _has_empty_side(human.read_text())
+    assert mod.main([str(repo)]) == 0
+    text = human.read_text()
+    assert text == MD_BASE + a_md + b_md
+    assert not mod.MARKER_LINE.search(text)
+
+
+def test_a_one_sided_resolution_round_trips_through_git(tmp_path: Path, mod) -> None:
+    a = _ai_block("A", 306, "s")
+    b = _without_measured(_ai_block("B", 306, "s"))
+    repo = _rebase_conflict(tmp_path, (a, b))
+    assert mod.main([str(repo)]) == 0
+    _git(repo, "add", "MEMORY")
+    cont = subprocess.run(
+        ["git", "-c", "core.editor=true", "rebase", "--continue"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert cont.returncode == 0, cont.stderr
+    assert _git(repo, "show", "HEAD:MEMORY/full_history_ai.md").stdout == AI_BASE + a + b
+
+
+# Atomicity: a refusal on either file leaves BOTH as git left them.
+
+
+def _snapshot(repo: Path) -> tuple[bytes, bytes]:
+    mem = repo / "MEMORY"
+    return (mem / "full_history_ai.md").read_bytes(), (mem / "full_history_human.md").read_bytes()
+
+
+def test_a_refused_prose_file_leaves_the_yaml_file_unwritten(tmp_path: Path, mod, capsys) -> None:
+    """main edited the last prose entry, so diff3 hands the prose hunk a
+    non-empty base and it is refused (#90). The YAML hunk is resolvable on its
+    own, and used to be written before the prose file was read."""
+    a = _ai_block("A", 306, "A suite")
+    b = _ai_block("B", 308, "B suite")
+    repo = _rebase_conflict(
+        tmp_path,
+        (a, b),
+        ("\n## A\n\nA body.\n", "\n## B\n\nB body.\n"),
+        main_edits_md_base=MD_BASE.replace("base prose.", "base prose, edited."),
+        style="diff3",
+    )
+    before = _snapshot(repo)
+    assert _hunks(before[0].decode()) == 1 and _hunks(before[1].decode()) == 1
+    assert mod.main([str(repo)]) == 1
+    assert "non-empty base" in capsys.readouterr().err
+    assert _snapshot(repo) == before
+
+
+def test_a_refused_yaml_file_leaves_the_prose_file_unwritten(tmp_path: Path, mod, capsys) -> None:
+    """Control: the YAML file is resolved first, so this order was already
+    atomic before #101."""
+    a = _ai_block("A", 306, "A suite")
+    b = _ai_block("B", 308, "B suite")
+    repo = _rebase_conflict(
+        tmp_path,
+        (a, b),
+        ("\n## A\n\nA body.\n", "\n## B\n\nB body.\n"),
+        ai_base="# Full history\n",
+        main_edits_base="# Full history (edited)\n",
+        style="diff3",
+    )
+    before = _snapshot(repo)
+    assert _hunks(before[0].decode()) == 1 and _hunks(before[1].decode()) == 1
+    assert mod.main([str(repo)]) == 1
+    assert "non-empty base" in capsys.readouterr().err
+    assert _snapshot(repo) == before

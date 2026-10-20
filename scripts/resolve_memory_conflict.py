@@ -60,6 +60,19 @@ Conflict shapes handled:
     theirs from the last section break they share". The YAML trailer handling
     and the diff3 base handling fall out of that without special cases.
 
+  One-sided hunks (#101), either file:
+    decisions_made: []
+    <<<<<<< HEAD
+    measured: "only A has this"
+    =======
+    >>>>>>> <commit>
+    followups: []
+
+    When the two appended entries share every line around a key only one of
+    them has, git leaves that key in a hunk whose other side is EMPTY. Either
+    side of any hunk may be empty; the whole-side rebuild above handles it
+    like any other hunk.
+
 Usage:
   python scripts/resolve_memory_conflict.py <repo-path>
   python scripts/resolve_memory_conflict.py <repo-path> --dry-run
@@ -76,9 +89,16 @@ import re
 import sys
 from pathlib import Path
 
+#: Each side is zero or more WHOLE lines, newline included (#101). The earlier
+#: `HEAD\n(.*?)\n=======` needed at least one line per side, so the one-sided
+#: hunk git emits for a key only one entry has did not match: a lone such hunk
+#: was skipped as "no conflict" and its markers were left in the file with rc 0,
+#: and one beside a matching hunk was refused as "markers remain".
 CONFLICT = re.compile(
-    r"<<<<<<< HEAD\n(.*?)\n(?:\|\|\|\|\|\|\|[^\n]*\n(.*?))?=======\n(.*?)\n>>>>>>> [^\n]*\n",
-    re.DOTALL,
+    r"<<<<<<< HEAD\n((?:[^\n]*\n)*?)"
+    r"(?:\|\|\|\|\|\|\|[^\n]*\n((?:[^\n]*\n)*?))?"
+    r"=======\n((?:[^\n]*\n)*?)"
+    r">>>>>>> [^\n]*\n",
 )
 
 #: A line that is one of git's conflict markers. Before #90 the regex above
@@ -129,8 +149,9 @@ def _two_sides(text: str) -> tuple[str, str]:
     for m in CONFLICT.finditer(text):
         a, b = _sides(m)
         common = text[pos : m.start()]
-        ours += [common, a, "\n"]
-        theirs += [common, b, "\n"]
+        # Each side already ends in its own newline, or is empty (#101).
+        ours += [common, a]
+        theirs += [common, b]
         pos = m.end()
     tail = text[pos:]
     return "".join(ours) + tail, "".join(theirs) + tail
@@ -256,7 +277,7 @@ def count_duplicated_trailers(text: str) -> int:
 def check_block_shape(text: str, path: Path, *, before: int = 0) -> None:
     """Raise if any session block carries a DUPLICATED trailer key.
 
-    `_process` already refuses to write a file with conflict markers left in it.
+    `_resolve` already refuses a resolution that leaves conflict markers behind.
     A file that *looks* well-formed but carries a duplicated `decisions_made:`
     is the same class of failure -- worse, actually, because it is invisible --
     so it gets the same treatment (#65).
@@ -317,17 +338,23 @@ def resolve_md(text: str) -> str:
     return _keep_both(text, _md_break, _paragraph_break, prose=True)
 
 
-def _process(path: Path, resolver, dry_run: bool) -> bool:
-    """Resolve conflicts in `path` using `resolver`. Returns True if changed."""
+def _resolve(path: Path, resolver) -> str | None:
+    """Resolve conflicts in `path` using `resolver`, WITHOUT writing.
+
+    Returns the resolved text, or None when the file has no conflict. Writing
+    is left to `main`, which resolves and checks both files first (#101): the
+    YAML file used to be written before the prose file was even read, so a
+    refusal on the prose file left MEMORY/ half-resolved.
+    """
     if not path.is_file():
-        return False
+        return None
     original = path.read_text(encoding="utf-8")
     # Use the full CONFLICT regex (not a substring check) so prose mentions of
     # the marker token in MEMORY/ files don't trigger false positives. The
     # substring shortcut was the source of issue #25 — portfolio-ops' own
     # MEMORY/full_history_human.md documents the marker shape in prose.
     if not CONFLICT.search(original):
-        return False
+        return None
     try:
         resolved = resolver(original)
     except RuntimeError as exc:
@@ -345,12 +372,7 @@ def _process(path: Path, resolver, dry_run: bool) -> bool:
         )
     if resolver is resolve_yaml:
         check_block_shape(resolved, path, before=count_duplicated_trailers(original))
-    if dry_run:
-        print(f"would resolve: {path}")
-    else:
-        path.write_text(resolved, encoding="utf-8")
-        print(f"resolved: {path}")
-    return True
+    return resolved
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -383,13 +405,27 @@ def main(argv: list[str] | None = None) -> int:
     yaml_path = repo / "MEMORY" / "full_history_ai.md"
     md_path = repo / "MEMORY" / "full_history_human.md"
 
-    changed_any = False
+    # Both files are resolved and checked before either is written, so a
+    # refusal leaves MEMORY/ exactly as git left it, never half-resolved (#101).
     try:
-        changed_any |= _process(yaml_path, resolve_yaml, args.dry_run)
-        changed_any |= _process(md_path, resolve_md, args.dry_run)
+        resolved = [
+            (path, _resolve(path, resolver))
+            for path, resolver in ((yaml_path, resolve_yaml), (md_path, resolve_md))
+        ]
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    changed_any = False
+    for path, text in resolved:
+        if text is None:
+            continue
+        changed_any = True
+        if args.dry_run:
+            print(f"would resolve: {path}")
+        else:
+            path.write_text(text, encoding="utf-8")
+            print(f"resolved: {path}")
 
     if not changed_any:
         print("no conflicts found")
