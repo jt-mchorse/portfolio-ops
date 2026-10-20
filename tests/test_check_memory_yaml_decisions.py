@@ -160,6 +160,9 @@ def test_this_repos_decisions_file_is_within_its_baseline() -> None:
         "decisions",
         "--file",
         str(REPO_ROOT / "MEMORY" / "core_decisions_ai.md"),
+        # As CI passes it (#102); the directory name is not the repo's in a worktree.
+        "--repo",
+        "portfolio-ops",
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 

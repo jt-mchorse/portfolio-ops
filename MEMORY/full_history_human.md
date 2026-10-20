@@ -2155,3 +2155,15 @@ A refused cap read now stops the run at exit 1 before anything is evaluated. A
 refused title read skips that finding and makes the run exit 1. This is the
 sibling the #92 session wrote down and left. It is latent until the trending
 secret (#17) is configured. 12 new tests.
+
+## 2026-10-20 — the MEMORY ratchet names a `--file` repo from its origin, not its folder (#102)
+
+Run with `--file` and no `--repo`, `check_memory_yaml.py` named the repo after
+the folder it was checked out in. That name is how it looks up the baseline, so
+in any worktree not called `portfolio-ops` it found no baseline and allowed
+zero bad entries. Two of the repo's own tests therefore failed on a green main
+(`2 failed, 385 passed`). CI never saw it because it passes `--repo`. The two
+tests now pass `--repo` as well. The checker also takes the name from the git
+`origin` URL first and falls back to the folder name only when there is no
+origin. That also fixes it for the worktrees under `repos/`. 11 new tests; 8
+fail on the old checker.

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -150,7 +151,14 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_this_repo_is_within_its_baseline() -> None:
-    proc = _run("--file", str(REPO_ROOT / "MEMORY" / "full_history_ai.md"))
+    # `--repo` as CI's ratchet step passes it (#102): without it the name came
+    # from the checkout directory, and a worktree not named portfolio-ops failed.
+    proc = _run(
+        "--file",
+        str(REPO_ROOT / "MEMORY" / "full_history_ai.md"),
+        "--repo",
+        "portfolio-ops",
+    )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
@@ -282,3 +290,101 @@ def test_a_comment_only_chunk_and_the_prose_header_are_not_blocks() -> None:
 
 def test_a_fence_less_session_entry_is_still_counted() -> None:
     assert count_unparseable("session: x\nfollowups: [#1]\n")[:2] == (1, 1)
+
+
+# ----------------------------------------------------------------------
+# The repo name `--file` implies (#102)
+# ----------------------------------------------------------------------
+#
+# The name keys the baseline. Taken from the checkout directory, a worktree
+# at /tmp/w/hunt2-ops was repo `hunt2-ops`: no baseline, allowance 0, and a
+# false REGRESSED on a green main. These copy this repo's own MEMORY files
+# into such a checkout, so the baseline they meet is the real one.
+
+ODD_NAME = "hunt2-ops"
+ORIGIN = "https://github.com/jt-mchorse/portfolio-ops.git"
+
+
+def _checkout(
+    tmp_path: Path, name: str = ODD_NAME, origin: str | None = ORIGIN
+) -> Path:
+    """A copy of this repo's MEMORY/ in a checkout named `name`."""
+    root = tmp_path / name
+    (root / "MEMORY").mkdir(parents=True)
+    for f in ("full_history_ai.md", "core_decisions_ai.md"):
+        (root / "MEMORY" / f).write_bytes((REPO_ROOT / "MEMORY" / f).read_bytes())
+    if origin is not None:
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(
+            ["git", "-C", str(root), "remote", "add", "origin", origin], check=True
+        )
+    return root
+
+
+def _run_in(
+    root: Path, *args: str, kind: str = "history"
+) -> subprocess.CompletedProcess[str]:
+    name = "full_history_ai.md" if kind == "history" else "core_decisions_ai.md"
+    return subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--kind",
+            kind,
+            "--file",
+            str(root / "MEMORY" / name),
+            *args,
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        # No walking up into whatever repo holds tmp_path.
+        env={**os.environ, "GIT_CEILING_DIRECTORIES": str(root.parent)},
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("kind", ["history", "decisions"])
+def test_an_oddly_named_checkout_of_this_repo_is_within_its_baseline(
+    tmp_path: Path, kind: str
+) -> None:
+    proc = _run_in(_checkout(tmp_path), kind=kind)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.startswith("portfolio-ops "), proc.stdout
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://github.com/jt-mchorse/portfolio-ops.git",
+        "https://github.com/jt-mchorse/portfolio-ops",
+        "https://github.com/jt-mchorse/portfolio-ops/",
+        "git@github.com:jt-mchorse/portfolio-ops.git",
+        "ssh://git@github.com/jt-mchorse/portfolio-ops.git",
+        "/Users/someone/projects/portfolio/portfolio-ops",
+    ],
+)
+def test_every_origin_url_shape_names_the_repo(tmp_path: Path, origin: str) -> None:
+    proc = _run_in(_checkout(tmp_path, origin=origin))
+    assert proc.stdout.startswith("portfolio-ops "), proc.stdout + proc.stderr
+
+
+def test_a_file_outside_any_checkout_falls_back_to_the_directory_name(
+    tmp_path: Path,
+) -> None:
+    proc = _run_in(_checkout(tmp_path, origin=None))
+    assert proc.stdout.startswith(f"{ODD_NAME} "), proc.stdout + proc.stderr
+
+
+def test_a_checkout_with_no_origin_falls_back_to_the_directory_name(
+    tmp_path: Path,
+) -> None:
+    root = _checkout(tmp_path, origin=None)
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    proc = _run_in(root)
+    assert proc.stdout.startswith(f"{ODD_NAME} "), proc.stdout + proc.stderr
+
+
+def test_an_explicit_repo_still_wins_over_the_origin(tmp_path: Path) -> None:
+    proc = _run_in(_checkout(tmp_path), "--repo", "llm-eval-harness")
+    assert proc.stdout.startswith("llm-eval-harness "), proc.stdout + proc.stderr
