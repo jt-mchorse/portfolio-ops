@@ -61,6 +61,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -216,6 +217,38 @@ def memory_file(root: Path, repo: str, kind: str = "history") -> Path:
     return root / "repos" / repo / "MEMORY" / name
 
 
+def repo_name_for(path: Path) -> str:
+    """Name the repo a ``--file`` MEMORY file belongs to (#102).
+
+    The name keys the baseline, so it must be the repo's name, not its
+    checkout's. Until #102 it was ``path.resolve().parents[1].name`` alone,
+    and a worktree such as ``/tmp/w/hunt2-ops`` became repo ``hunt2-ops``:
+    no baseline, an allowance of 0, and a false REGRESSED on a green main.
+    The origin URL names the repo in every checkout of it -- clone, worktree,
+    or a ``repos/leh-266`` beside the canonical one -- so it is asked first.
+    The directory name is the fallback for a file outside any git checkout.
+    """
+    parent = path.resolve().parent
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(parent), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        proc = None
+    if proc is not None and proc.returncode == 0:
+        # https://host/o/name.git, git@host:o/name.git and a local path all
+        # end in the repo name, after the last `/` or `:`.
+        url = proc.stdout.strip().rstrip("/")
+        name = re.split(r"[/:]", url)[-1].removesuffix(".git")
+        if name:
+            return name
+    return path.resolve().parents[1].name
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="check_memory_yaml",
@@ -243,7 +276,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--file",
-        help="Check a single MEMORY file of --kind directly; implies --repo of its repo name.",
+        help=(
+            "Check a single MEMORY file of --kind directly; implies --repo of its "
+            "repo name, from the origin URL, else the checkout directory (#102)."
+        ),
     )
     parser.add_argument(
         "--write-baseline",
@@ -258,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.file:
         path = Path(args.file)
-        repos = [args.repo[0] if args.repo else path.resolve().parents[1].name]
+        repos = [args.repo[0] if args.repo else repo_name_for(path)]
         paths = {repos[0]: path}
     else:
         repos = args.repo or sorted(baseline)
