@@ -2637,3 +2637,21 @@ context_for_next_session:
   - NOT_DONE_a_URLError_from_gh_is_still_a_traceback_loud_not_silent
 followups: []
 ---
+
+---
+session: 2026-10-20T08:08Z
+issue: 102
+focus: CHECK_MEMORY_YAML_FILE_MODE_NAMED_THE_REPO_AFTER_THE_CHECKOUT_DIRECTORY_SO_ANY_WORKTREE_NOT_NAMED_portfolio-ops_GOT_ALLOWANCE_0
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 11
+  suite: "387 -> 398 green (was 2 failed, 385 passed in /tmp/w/ops-102)"
+decisions_made: []
+measured: "origin/main 69e015a in worktree ops-102: test_this_repo_is_within_its_baseline and test_this_repos_decisions_file_is_within_its_baseline red (repo read as ops-102, baseline 0). After: 398 passed. Revert probe on scripts/check_memory_yaml.py: 8 of 11 new arms red (2 odd-named checkout x kind, 6 origin URL shapes); 3 green are controls (no git, no origin, explicit --repo wins). The 2 existing tests' fix is in the test file (--repo portfolio-ops, as CI passes)."
+context_for_next_session:
+  - FILE_MODE_NOW_ASKS_git_remote_get-url_origin_FIRST_then_falls_back_to_the_directory_name
+  - repos_ALREADY_HOLDS_WORKTREES_leh-266_csl-sur_etc_so_the_directory_name_was_wrong_beyond_ops_too
+  - TEST_FILE_HAS_4_PREEXISTING_ruff_format_HUNKS_AT_DEFAULT_WIDTH_ruff_IS_NOT_IN_THIS_REPOS_CI
+followups: []
+---
