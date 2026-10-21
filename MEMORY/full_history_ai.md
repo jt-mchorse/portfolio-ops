@@ -2691,3 +2691,21 @@ context_for_next_session:
   - YAML_EDIT_TO_THE_LAST_BLOCK_MERGES_CLEANLY_IN_REAL_GIT_the_shared_trailer_realigns_it_so_only_a_hand_built_hunk_reaches_that_arm
 followups: []
 ---
+
+---
+session: 2026-10-21T07:44Z
+issue: 107
+focus: GLUED_MEMORY_BLOCKS_LOAD_AS_ONE_MAPPING_SO_THE_RATCHET_NEVER_COUNTED_THEM_AND_A_LOCAL_merge=union_IN_info_attributes_WAS_INVISIBLE_TO_EVERY_CHECK
+phase: shipped
+delta:
+  files_changed: 8
+  tests_added: 13
+  suite: "418 -> 431 green"
+decisions_made: []
+measured: "13 origin/main full_history_ai.md files: 29 blocks with a duplicate top-level key, in every repo (28 glued pairs/runs hiding 49 entries, mostly 2026-10-07; nx still has a glued 10-21T07:25Z+07:37Z pair after nx#212; ops 2026-05-27 repeats decisions_made so D-006/D-007 read as []). Baselines raised by exactly each repo's share, 74 -> 103. 7 repos were already over baseline before the change, by the same margins after (#109). Revert probe: check_memory_yaml.py at origin/main -> 4 of 7 new arms red, 3 green controls; check_merge_attr.py replaced by a string read of .git/info/attributes -> 2 of 6 red (worktree, committed .gitattributes)."
+context_for_next_session:
+  - safe_load_KEEPS_THE_LAST_DUPLICATE_KEY_SILENTLY_a_parse_ratchet_cannot_see_data_loss_that_still_parses_compose_keeps_every_key
+  - ASK_GIT_check-attr_NOT_THE_ATTRIBUTES_FILE_a_worktree_has_a_.git_FILE_and_shares_the_common_dir_info
+  - NOT_DONE_the_merge-append_driver_info_attributes_overrides_a_committed_gitattributes_so_it_would_not_run_where_the_bug_was
+followups: ["#109"]
+---

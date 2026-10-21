@@ -12,6 +12,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
 | `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks, and with `--kind decisions` on unparseable `MEMORY/core_decisions_ai.md` entries. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010, #75, D-013 |
+| `check_merge_attr.py` | Reports every local clone or worktree under `portfolio-ops/` and `repos/*` whose `git check-attr merge` on `MEMORY/full_history_{ai,human}.md` is not `unspecified`. A leftover `merge=union` in `.git/info/attributes` turns the conflict `resolve_memory_conflict.py` handles into a clean, glued merge. Phase A only: `audit-cron` has no local clones. | #107 |
 | `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Rebuilds both whole sides and writes ours, then theirs from the last section break they share, so an entry git split into several hunks stays whole (#95) and a hoisted trailer needs no special case. Refuses an entry present on both sides after they diverge, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. Either side of a hunk may be empty (a key or paragraph only one entry has, #101), and both files are resolved and checked before either is written, so a refusal never leaves MEMORY/ half-resolved. Refuses an edit to the last existing entry under the default style too, by checking the merge base from git's index (stage 1) is intact before the cut; with no stage-1 base, two appended tails opening with the same heading or `session:` line are refused as ambiguous (#104). | #11, #23, #25, #65, #90, #95, #101, #104 |
 
 ## Local-runner setup
@@ -36,7 +37,15 @@ cd ~/projects/portfolio
 python3 portfolio-ops/scripts/check_memory_yaml.py --root .
 python3 portfolio-ops/scripts/check_memory_yaml.py --root . --kind decisions
 # -> 0 within baseline, 1 a repo regressed, 2 usage/IO error
+python3 portfolio-ops/scripts/check_merge_attr.py --root .
+# -> 0 every checkout unspecified, 1 a merge attribute is set, 2 usage error
 ```
+
+Since #107 the history ratchet also counts a block that loads but repeats a
+top-level key. Two entries glued without their `---` fence load as one mapping
+in which the second entry's keys win, so the first entry disappears with no
+parse error. The 29 such blocks on the 13 origin/main files on 2026-10-21 were
+added to each repo's baseline, and nothing else was added.
 
 `check_memory_yaml.py` is a **ratchet**: it compares each repo against
 `scripts/memory_yaml_baseline.json` and fails only when a count grows. It does

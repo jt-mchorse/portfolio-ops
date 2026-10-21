@@ -2192,3 +2192,17 @@ refuses unless the base's last entry is intact on both sides. When there is no
 base to read, it refuses two new entries that open with the same heading,
 because a refusal only means a manual rebase. 11 new tests; 8 fail on the old
 resolver.
+
+## 2026-10-21 — the history ratchet counts glued entries, and Phase A checks for a local merge attribute (#107)
+
+The glued MEMORY entries from the 10-21 night run came from a leftover
+`MEMORY/*.md merge=union` line in each clone's `.git/info/attributes`, which
+has been removed by hand. Two checks would have caught it, and both now exist.
+`check_memory_yaml.py` now counts a block that loads but repeats a top-level
+key. A glued pair loads as one entry with the second entry's values, so it was
+never counted. The new rule found 29 such blocks across all 13 repos, hiding 49
+entries, including one pair on nextjs main that survived its repair PR. Each
+baseline was raised by exactly its own count. The new `check_merge_attr.py`
+asks git which merge attribute applies to the history files in every local
+checkout, and Phase A now runs it. 13 new tests. Seven repos were already over
+their baseline before this change; that is filed as #109.

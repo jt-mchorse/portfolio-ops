@@ -231,10 +231,13 @@ def test_the_baseline_covers_every_portfolio_repo() -> None:
     assert set(baseline) == expected
 
 
-def test_the_baseline_totals_the_measured_74() -> None:
-    """The number in #66, re-measured on 2026-08-26 against 953 blocks. If a
-    retro-fix lands, this test is the one that should be updated deliberately."""
-    assert sum(load_baseline().values()) == 74
+def test_the_baseline_totals_the_measured_74_plus_107s_29() -> None:
+    """The number in #66, re-measured on 2026-08-26 against 953 blocks, plus
+    the 29 glued or duplicate-key blocks #107's rule newly counts on the 13
+    origin/main files of 2026-10-21 (each repo raised by exactly its own share,
+    so no growth from before #107 was folded in). If a retro-fix lands, this
+    test is the one that should be updated deliberately."""
+    assert sum(load_baseline().values()) == 74 + 29
 
 
 def test_the_baseline_is_not_vacuous() -> None:

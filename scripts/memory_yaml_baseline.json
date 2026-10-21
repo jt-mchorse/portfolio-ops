@@ -1,19 +1,19 @@
 {
   "_comment": "Unparseable MEMORY entries per repo: session blocks in full_history_ai.md (frozen by #66) and decision entries in core_decisions_ai.md (frozen by #75). This is a RATCHET: check_memory_yaml.py fails when a count grows, never demanding zero, so the retro-fix decision (#66, #75) stays JT's. Regenerate with --write-baseline only as part of a deliberate retro-fix.",
   "unparseable_by_repo": {
-    "agent-orchestration-platform": 5,
-    "ai-app-integration-tests": 5,
-    "chunking-strategies-lab": 8,
-    "embedding-model-shootout": 4,
-    "llm-cost-optimizer": 5,
-    "llm-eval-harness": 10,
-    "mcp-server-cookbook": 5,
-    "nextjs-streaming-ai-patterns": 8,
-    "portfolio-ops": 6,
-    "prompt-regression-suite": 7,
-    "python-async-llm-pipelines": 2,
-    "rag-production-kit": 6,
-    "vector-search-at-scale": 3
+    "agent-orchestration-platform": 8,
+    "ai-app-integration-tests": 6,
+    "chunking-strategies-lab": 9,
+    "embedding-model-shootout": 6,
+    "llm-cost-optimizer": 7,
+    "llm-eval-harness": 13,
+    "mcp-server-cookbook": 7,
+    "nextjs-streaming-ai-patterns": 13,
+    "portfolio-ops": 7,
+    "prompt-regression-suite": 9,
+    "python-async-llm-pipelines": 3,
+    "rag-production-kit": 8,
+    "vector-search-at-scale": 7
   },
   "unparseable_decisions_by_repo": {
     "agent-orchestration-platform": 10,
