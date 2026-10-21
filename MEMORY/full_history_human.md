@@ -2179,3 +2179,16 @@ Each side may now be empty. Both MEMORY files are also resolved and checked
 before either is written, so a refusal no longer leaves one file resolved and
 the other not. While reproducing it I found that an edit to the last existing
 entry can be written twice (#104, filed and not fixed here). 9 new tests.
+
+## 2026-10-21 — the resolver refuses a conflict where a side edited the last entry (#104)
+
+When main edited the last existing prose entry and both branches added an
+entry after it, git's default conflict style put the edit in the same hunk as
+the new entries. The resolver wrote the edited entry and then the original
+again, and exited 0. From the conflict text alone this looks exactly like two
+new entries that happen to share a heading, which is legitimate. The resolver
+now reads the merge base that git keeps in its index during a rebase and
+refuses unless the base's last entry is intact on both sides. When there is no
+base to read, it refuses two new entries that open with the same heading,
+because a refusal only means a manual rebase. 11 new tests; 8 fail on the old
+resolver.

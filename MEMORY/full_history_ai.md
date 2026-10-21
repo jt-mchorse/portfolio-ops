@@ -2673,3 +2673,21 @@ context_for_next_session:
   - NOT_DONE_a_marker_line_left_after_no_CONFLICT_match_is_still_not_refused_it_needs_to_tell_a_broken_hunk_from_25s_prose
 followups: ["#104"]
 ---
+
+---
+session: 2026-10-21T07:15Z
+issue: 104
+focus: RESOLVER_WROTE_THE_LAST_EXISTING_ENTRY_TWICE_WHEN_A_SIDE_EDITED_IT_UNDER_DEFAULT_MERGE_STYLE_BECAUSE_NO_WHOLE_SECTION_IS_SHARED_PAST_THE_CUT
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 11
+  suite: "407 -> 418 green"
+decisions_made: []
+measured: "real git rebase on origin/main 43d44ea, the issue's prose repro: default style rc 0 with ## base written twice; diff3/zdiff3 rc 1. After: rc 1, nothing written. Revert probe on scripts/resolve_memory_conflict.py: 8 of 11 new arms red (6 behavioural, 2 on the new base= / _merge_base API); 3 green are controls (same heading, same session line, this repo's real MEMORY files as base). Partial probes: base check off -> exactly the 3 real-git edited-entry arms red; no-base fallback off -> exactly the 3 no-base arms red; the issue's same-heading rule used alone -> the 3 controls red."
+context_for_next_session:
+  - THE_CONFLICT_TEXT_CANNOT_TELL_AN_EDITED_LAST_ENTRY_FROM_TWO_NEW_ENTRIES_WITH_THE_SAME_HEADING_git_index_stage_1_CAN_so_the_resolver_reads_it
+  - WITHOUT_A_STAGE_1_BASE_the_same_first_line_shape_is_refused_as_ambiguous
+  - YAML_EDIT_TO_THE_LAST_BLOCK_MERGES_CLEANLY_IN_REAL_GIT_the_shared_trailer_realigns_it_so_only_a_hand_built_hunk_reaches_that_arm
+followups: []
+---
