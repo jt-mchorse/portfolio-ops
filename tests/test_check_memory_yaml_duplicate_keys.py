@@ -6,7 +6,8 @@ the second entry ran straight on from it. That block still loads.
 ``yaml.safe_load`` keeps the last copy of each repeated key, so it reads as the
 second entry alone and the first is gone, with no parse error for the ratchet to
 count. Measured on the 13 origin/main files on 2026-10-21: 29 such blocks in
-every repo, hiding 40-odd entries, most from the 2026-10-07 night run.
+every repo, 28 of them glued pairs or runs hiding 49 entries behind the 28 that
+still read, most from the 2026-10-07 night run.
 
 The last arm builds the glued block the way it was really made: a real
 ``git rebase`` with ``MEMORY/*.md merge=union`` in ``.git/info/attributes``.
