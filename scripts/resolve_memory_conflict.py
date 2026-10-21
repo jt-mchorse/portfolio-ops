@@ -73,6 +73,15 @@ Conflict shapes handled:
     side of any hunk may be empty; the whole-side rebuild above handles it
     like any other hunk.
 
+  A side edited the LAST existing entry (#104), default style:
+    git's default style has no base section, so an edit to the last entry
+    arrives in the same hunk as the appended ones and nothing in the conflict
+    text says which lines are history. The merge base is read from git's index
+    (stage 1, present for every conflicted path mid-rebase) and its last
+    section must lie before the point where the sides diverge; otherwise the
+    file is refused. Without a stage-1 base, two appended tails that open with
+    the same heading or `session:` line are refused as ambiguous.
+
 Usage:
   python scripts/resolve_memory_conflict.py <repo-path>
   python scripts/resolve_memory_conflict.py <repo-path> --dry-run
@@ -86,6 +95,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -187,7 +197,14 @@ def _sections(lines: list[str], is_break) -> list[str]:
     return [sec for sec in out if sec.strip()]
 
 
-def _keep_both(text: str, is_break, fallback=None, *, prose: bool = False) -> str:
+def _first_line(section: str) -> str:
+    """The line that names a section: its `## ` heading or its `session:` line."""
+    return next((ln for ln in section.splitlines() if ln.strip() not in ("", "---")), "")
+
+
+def _keep_both(
+    text: str, is_break, fallback=None, *, prose: bool = False, base: str | None = None
+) -> str:
     """Resolve every conflict in `text` as "all of ours, then theirs' new part".
 
     Append-only means each side is the shared history plus what that side
@@ -203,6 +220,16 @@ def _keep_both(text: str, is_break, fallback=None, *, prose: bool = False) -> st
     the sides share history past the point where they diverge, which means one
     side edited an existing entry, and keeping both would keep it twice (the
     default-style blind spot #90 recorded and did not close).
+
+    A side that edited the LAST existing entry shares no whole section past the
+    cut -- its edited and original versions differ -- so the check above cannot
+    see it, and both versions were written with rc 0 (#104). Two appended
+    entries may legitimately open with the same heading or `session:` line, so
+    the conflict text alone cannot tell the two apart. `base`, the merge base
+    from git's index, can: append-only means its last section is still whole
+    in the prefix both sides share. Without a base, the same-first-line shape
+    is refused: a refusal falls back to a manual rebase, a wrong guess writes
+    an entry twice.
     """
     if not CONFLICT.search(text):
         return text
@@ -237,13 +264,37 @@ def _keep_both(text: str, is_break, fallback=None, *, prose: bool = False) -> st
             "sides after they diverge, so a side edited existing history; that is "
             "not the append-only shape. Inspect manually."
         )
+    if base is not None:
+        # #104: append-only means the last entry the sides started from is
+        # still whole before the cut. Compared stripped, so a base that ended
+        # without its final newline still matches.
+        base_secs = _sections(base.splitlines(keepends=True), is_break)
+        if base_secs and base_secs[-1].strip() not in {
+            sec.strip() for sec in _sections(o[:k], is_break)
+        }:
+            raise RuntimeError(
+                "the last entry of the merge base is not intact on both sides, so "
+                "a side edited existing history; that is not the append-only shape. "
+                "Inspect manually."
+            )
+    else:
+        o_tail = _sections(o[k:], is_break)
+        t_tail = _sections(t[k:], is_break)
+        if o_tail and t_tail and _first_line(o_tail[0]) == _first_line(t_tail[0]):
+            # #104: an edited last entry and two new entries that share a
+            # heading look identical here; only the merge base tells them apart.
+            raise RuntimeError(
+                f"both sides continue with an entry headed '{_first_line(o_tail[0])}' "
+                "and git's index has no merge base to tell a new entry from an "
+                "edited one. Inspect manually."
+            )
     if prose:
         # One blank line between sections, however each side ended.
         return ours.rstrip("\n") + "\n\n" + "".join(t[k:]).lstrip("\n")
     return ours + "".join(t[k:])
 
 
-def resolve_yaml(text: str) -> str:
+def resolve_yaml(text: str, *, base: str | None = None) -> str:
     """Resolve YAML conflicts in MEMORY/full_history_ai.md.
 
     Two earlier versions of this function resolved each conflict hunk as one
@@ -257,7 +308,7 @@ def resolve_yaml(text: str) -> str:
     aligned interior needs a special case: both are common lines, present in
     both rebuilt sides.
     """
-    return _keep_both(text, _yaml_break)
+    return _keep_both(text, _yaml_break, base=base)
 
 
 def count_duplicated_trailers(text: str) -> int:
@@ -328,14 +379,36 @@ def check_block_shape(text: str, path: Path, *, before: int = 0) -> None:
                 )
 
 
-def resolve_md(text: str) -> str:
+def resolve_md(text: str, *, base: str | None = None) -> str:
     """Resolve Markdown conflicts in MEMORY/full_history_human.md.
 
     Same whole-side resolution as the YAML file, with a `## ` heading as the
     section start: two prose sections that share a paragraph line split into
     hunks exactly the way two YAML blocks sharing `delta:` do (#95).
     """
-    return _keep_both(text, _md_break, _paragraph_break, prose=True)
+    return _keep_both(text, _md_break, _paragraph_break, prose=True, base=base)
+
+
+def _merge_base(path: Path) -> str | None:
+    """The merge base of a conflicted `path` from git's index (stage 1), or None.
+
+    Mid-rebase git keeps the base, ours and theirs of every conflicted path as
+    index stages 1-3, whatever `merge.conflictStyle` says. None when there is
+    no stage 1 -- no git, not a repo, the path already staged, or an add/add
+    conflict with no common ancestor (#104).
+    """
+    try:
+        out = subprocess.run(
+            ["git", "show", f":1:./{path.name}"],
+            cwd=path.parent,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.decode("utf-8", errors="surrogateescape")
 
 
 def _resolve(path: Path, resolver) -> str | None:
@@ -356,7 +429,7 @@ def _resolve(path: Path, resolver) -> str | None:
     if not CONFLICT.search(original):
         return None
     try:
-        resolved = resolver(original)
+        resolved = resolver(original, base=_merge_base(path))
     except RuntimeError as exc:
         raise RuntimeError(f"{path}: {exc}") from None
     # Compared against the original with its conflicts removed, not against
