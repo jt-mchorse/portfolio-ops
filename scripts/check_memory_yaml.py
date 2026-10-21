@@ -103,7 +103,41 @@ def count_unparseable(text: str) -> tuple[int, int, list[str]]:
             unparseable += 1
             first = next(ln for ln in block.splitlines() if _is_content(ln))
             reasons.append(f"fenced fragment with no session key: {first.strip()[:60]}")
+            continue
+        dups = _duplicate_top_level_keys(block)
+        if dups:
+            # Loads, but as one mapping where the last copy of each key won
+            # (#107). Two entries glued without their `---` fence, the shape a
+            # clean `merge=union` rebase produced, read as the second entry
+            # alone, so the first one is gone without a parse error.
+            unparseable += 1
+            reasons.append(f"duplicate top-level key(s): {', '.join(dups)}")
     return unparseable, total, reasons
+
+
+def _duplicate_top_level_keys(block: str) -> list[str]:
+    """Top-level keys a block repeats, in first-seen order (#107).
+
+    ``yaml.safe_load`` keeps the last value of a repeated key and says
+    nothing, so the loaded mapping cannot show the loss. The composed node
+    still holds every key as written. Only the top level is checked: that is
+    where a glued pair repeats ``session:``, and where a hand edit repeating
+    ``decisions_made:`` silently drops the first list.
+    """
+    import yaml
+
+    node = yaml.compose(block, Loader=yaml.SafeLoader)
+    if not isinstance(node, yaml.MappingNode):
+        return []
+    seen: set[str] = set()
+    dups: list[str] = []
+    for key, _value in node.value:
+        if not isinstance(key, yaml.ScalarNode):
+            continue
+        if key.value in seen and key.value not in dups:
+            dups.append(key.value)
+        seen.add(key.value)
+    return dups
 
 
 def _is_content(line: str) -> bool:
