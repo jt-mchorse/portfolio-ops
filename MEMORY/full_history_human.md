@@ -2206,3 +2206,20 @@ baseline was raised by exactly its own count. The new `check_merge_attr.py`
 asks git which merge attribute applies to the history files in every local
 checkout, and Phase A now runs it. 13 new tests. Seven repos were already over
 their baseline before this change; that is filed as #109.
+
+## 2026-10-22 — seven repos brought back under their history ratchet with MEMORY-only repairs (#109)
+
+Seven repos had more unloadable history blocks on main than their frozen
+baseline allows, 12 extra blocks in all. Every one was written on or after
+2026-10-07, so none is old history that the #66 decision covers. In most of
+them, a merge had kept the lines two neighbouring entries share
+(`phase: shipped`, `delta:`, the file and test counts) only once. That put the
+new entry's opening lines inside the previous entry and left its remainder as
+a fragment with no `session:` key. Other cases: entries appended with no
+`---` fence, one stray duplicated tail, one lost `session:` line, and two
+followups with an unquoted `#`. Each repo got one MEMORY-only PR that moves
+the misplaced lines back and restores the lost ones. No original line was
+dropped, apart from the two re-quoted followups. Every repaired repo is now
+exactly at its baseline. The baselines themselves are unchanged: lowering one
+is a re-freeze and stays JT's call. The nextjs pair named in the issue had
+already been fixed by nx#213.

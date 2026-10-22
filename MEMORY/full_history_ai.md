@@ -2709,3 +2709,21 @@ context_for_next_session:
   - NOT_DONE_the_merge-append_driver_info_attributes_overrides_a_committed_gitattributes_so_it_would_not_run_where_the_bug_was
 followups: ["#109"]
 ---
+
+---
+session: 2026-10-22T07:16Z
+issue: 109
+focus: SEVEN_REPOS_OVER_THEIR_HISTORY_RATCHET_ON_ORIGIN_MAIN_BY_12_POST_FREEZE_BLOCKS_REPAIRED_IN_SEVEN_MEMORY_ONLY_PRS
+phase: shipped
+delta:
+  files_changed: 0
+  tests_added: 0
+  suite: "431 green (no ops code changed); cross-repo ratchet on the 13 origin/main files exit 1 -> exit 0 with the 7 repaired files"
+decisions_made: []
+measured: "2026-10-22 ~07:20Z, check_memory_yaml.py --root over a snapshot of all 13 origin/main full_history_ai.md: 7 REGRESSED (aop 9/8, aiapp 8/6, ems 7/6, lco 10/7, leh 14/13, rag 9/8, vsas 10/7), 12 excess blocks, all written 2026-10-07 or later, none pre-#66 and none among #108's 29 duplicate-key blocks. With the repaired files: all 13 ok, each repaired repo exactly at its baseline. Shapes: 6 heads that landed inside the previous entry after its focus line, with the shared phase/delta/files_changed/tests_added lines kept once (aop, ems, rag, lco x3); 2 fence-less interleaved runs (aiapp 10-12/10-13, leh 10-07 x6); 1 stray followups tail (aiapp); 1 lost session line (vsas #231); 2 unquoted '#' followups (vsas). Line multiset check: no original content line dropped except the 2 re-quoted vsas lines. Restored files_changed matched each squash commit's non-MEMORY file count. nx's glued 10-21 pair was already repaired by nx#213 (nx 11/13). PRs: aop#256 aiapp#242 ems#248 lco#349 leh#422 rag#386 vsas#263."
+context_for_next_session:
+  - A_MERGE_THAT_KEEPS_SHARED_LINES_ONCE_PUTS_THE_NEW_HEAD_AFTER_THE_OLD_FOCUS_the_tail_fragment_starts_at_suite_and_the_lost_lines_are_exactly_the_shared_ones
+  - THE_RATCHET_ONLY_COUNTS_THE_FRAGMENT_the_entry_its_head_landed_in_still_loads_truncated_at_focus
+  - NOT_DONE_baselines_left_as_is_lowering_nx_13_to_11_is_a_re_freeze_and_JT_call_66
+followups: []
+---
