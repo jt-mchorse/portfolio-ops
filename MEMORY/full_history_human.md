@@ -2223,3 +2223,15 @@ dropped, apart from the two re-quoted followups. Every repaired repo is now
 exactly at its baseline. The baselines themselves are unchanged: lowering one
 is a re-freeze and stays JT's call. The nextjs pair named in the issue had
 already been fixed by nx#213.
+
+## 2026-10-26 — re-freezing one repo's MEMORY baseline no longer drops the others (#111)
+
+`check_memory_yaml.py --write-baseline` used to replace the whole baseline map
+for a kind with only the repos that run had checked. Re-freezing a single
+repo, or running the CI `--file` form, deleted the other twelve repos' entries.
+The default run reads its repo list from the baseline, so those repos would no
+longer have been checked, and nothing would have reported it. The pending
+nextjs re-freeze from #66 is exactly that kind of single-repo write. The write
+now merges into the existing map, so only the checked repos change. 8 new
+tests; 6 of them fail on the old script, and the 2 that pass are the
+full-write controls. PR #114.

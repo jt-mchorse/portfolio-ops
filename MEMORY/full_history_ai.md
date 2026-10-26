@@ -2727,3 +2727,21 @@ context_for_next_session:
   - NOT_DONE_baselines_left_as_is_lowering_nx_13_to_11_is_a_re_freeze_and_JT_call_66
 followups: []
 ---
+
+---
+session: 2026-10-26T07:37Z
+issue: 111
+focus: WRITE_BASELINE_REPLACED_THE_PER_KIND_REPO_MAP_SO_A_ONE_REPO_OR_FILE_REFREEZE_DROPPED_EVERY_OTHER_REPO_OUT_OF_THE_RATCHET
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 8
+  suite: "431 -> 439 green"
+decisions_made: []
+measured: "temp copy of scripts/ over an origin/main snapshot of all 13 repos: before, --repo nextjs-streaming-ai-patterns --write-baseline left unparseable_by_repo == {nextjs: 11} and the next default run printed 1 line rc 0; after, 13 lines, nextjs 11/108 baseline 11, the other 12 unchanged. Revert probe on scripts/check_memory_yaml.py: 6 of 8 new arms red; 2 green are the full-write controls where merge and replace agree. PR #114."
+context_for_next_session:
+  - A_DEFAULT_RUN_TAKES_ITS_REPO_LIST_FROM_THE_BASELINE_so_any_write_that_shrinks_the_map_silently_shrinks_what_is_checked
+  - REMOVING_A_REPO_FROM_THE_BASELINE_IS_NOW_A_HAND_EDIT_no_flag_on_purpose
+  - THE_NX_13_TO_11_REFREEZE_IS_STILL_JT_GATED_66_this_only_makes_it_safe_to_run
+followups: []
+---
