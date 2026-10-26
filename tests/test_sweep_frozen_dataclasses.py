@@ -50,8 +50,9 @@ def test_any_is_in_the_mutable_hints() -> None:
 
 
 def test_the_original_hints_are_all_still_present() -> None:
-    """Adding `Any` must not have replaced the set #71 already validated."""
-    for hint in ("dict", "list", "set[", "Mapping", "MutableMapping", "bytearray"):
+    """Adding `Any` must not have replaced the set #71 already validated.
+    (`set[` became `set` in #113, when hints became outer type names.)"""
+    for hint in ("dict", "list", "set", "Mapping", "MutableMapping", "bytearray"):
         assert hint in MUTABLE_HINTS, hint
 
 
@@ -65,7 +66,7 @@ def test_immutable_hints_win_over_mutable_ones() -> None:
         frozen_set: frozenset[str] = frozenset()
 
     assert mutable_fields(Sample) == []
-    assert set(IMMUTABLE_HINTS) == {"tuple", "frozenset"}
+    assert set(IMMUTABLE_HINTS) == {"tuple", "Tuple", "frozenset", "FrozenSet"}
 
 
 # --- field detection ---------------------------------------------------------

@@ -44,6 +44,7 @@ reports for a list whose real-hit rate is about a third.
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import importlib
 import inspect
@@ -51,15 +52,54 @@ import pkgutil
 import sys
 from typing import Any
 
-#: Annotations that cannot hold a mutable object, checked first so
-#: `tuple[dict, ...]` is not reported for its element type.
-IMMUTABLE_HINTS: tuple[str, ...] = ("tuple", "frozenset")
+#: Outer types that cannot hold a mutable object at the field level, whatever
+#: their element types, so `tuple[dict, ...]` is not reported (#113: matched on
+#: the OUTERMOST type, not anywhere in the annotation text).
+IMMUTABLE_HINTS: frozenset[str] = frozenset({"tuple", "Tuple", "frozenset", "FrozenSet"})
 
-#: Annotations that can. `Any` is the load-bearing entry (#71's sweep omitted
+#: Outer types that can. `Any` is the load-bearing entry (#71's sweep omitted
 #: it): an unconstrained field is precisely where a mutable value hides, and it
 #: is where the one confirmed defect in this class was found. Removing it makes
 #: the whole sweep under-count, silently and portfolio-wide.
-MUTABLE_HINTS: tuple[str, ...] = (
+#:
+#: Until #113 this was a tuple of substrings tested against the whole
+#: annotation, after an "immutable" substring test. `dict[str, tuple[...]]`
+#: mentions `tuple`, so it was skipped, and that is how
+#: `eval_harness.runs.StoredRun.rows` never appeared. The match was also
+#: case-sensitive with only `"set["`, so `List[str]`, `Set[str]` and a bare
+#: `set` were never reported.
+MUTABLE_HINTS: frozenset[str] = frozenset(
+    {
+        "dict",
+        "list",
+        "set",
+        "bytearray",
+        "defaultdict",
+        "deque",
+        "Dict",
+        "List",
+        "Set",
+        "DefaultDict",
+        "OrderedDict",
+        "Counter",
+        "Deque",
+        "Mapping",
+        "MutableMapping",
+        "MutableSequence",
+        "MutableSet",
+        "Any",
+    }
+)
+
+#: Wrappers whose arguments ARE the field's type: a union is mutable when any
+#: arm is, and `Annotated[X, meta]` / `Final[X]` are `X`.
+_UNION_HEADS = frozenset({"Optional", "Union"})
+_TRANSPARENT_HEADS = frozenset({"Annotated", "Final", "InitVar"})
+
+#: Substrings for an annotation `ast` cannot parse. This is the pre-#113 rule,
+#: kept only as the fallback, so that an odd annotation never drops out of the
+#: worklist.
+_FALLBACK_SUBSTRINGS: tuple[str, ...] = (
     "dict",
     "list",
     "set[",
@@ -70,14 +110,59 @@ MUTABLE_HINTS: tuple[str, ...] = (
 )
 
 
+def _annotation_text(tp: Any) -> str:
+    """The annotation as source text. A class annotation such as bare `set`
+    stringifies as `<class 'set'>`, so its name is used instead."""
+    if isinstance(tp, str):
+        return tp
+    if inspect.isclass(tp) and not getattr(tp, "__args__", None):
+        return tp.__name__
+    return str(tp)
+
+
+def _head(node: ast.expr) -> str | None:
+    """`typing.List` -> `List`, `dict` -> `dict`; anything else -> None."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _is_mutable(node: ast.expr) -> bool:
+    """Classify one annotation node by its outermost type (#113)."""
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):  # a quoted forward reference
+            return _text_is_mutable(node.value)
+        return False  # `None`
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):  # X | Y
+        return _is_mutable(node.left) or _is_mutable(node.right)
+    if isinstance(node, ast.Subscript):
+        head = _head(node.value)
+        args = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
+        if head in _UNION_HEADS:
+            return any(_is_mutable(arg) for arg in args)
+        if head in _TRANSPARENT_HEADS:
+            return _is_mutable(args[0])
+        return head in MUTABLE_HINTS
+    head = _head(node)
+    return head is not None and head in MUTABLE_HINTS
+
+
+def _text_is_mutable(text: str) -> bool:
+    try:
+        node = ast.parse(text.strip(), mode="eval").body
+    except SyntaxError:
+        return any(hint in text for hint in _FALLBACK_SUBSTRINGS)
+    return _is_mutable(node)
+
+
 def mutable_fields(cls: type) -> list[tuple[str, str]]:
     """`(field_name, annotation)` for each field that could hold a mutable."""
     out: list[tuple[str, str]] = []
     for field in dataclasses.fields(cls):
-        annotation = str(field.type)
-        if any(hint in annotation for hint in IMMUTABLE_HINTS):
-            continue
-        if any(hint in annotation for hint in MUTABLE_HINTS):
+        annotation = _annotation_text(field.type)
+        if _text_is_mutable(annotation):
             out.append((field.name, annotation))
     return out
 
