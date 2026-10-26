@@ -11,7 +11,7 @@ only third-party dep, used by two `audit_phase_a.py` fingerprints.
 | `audit_issue_sync.py` | Decides whether an audit finding set should **file** a new `[audit-cron]` issue, **comment** on the open one, or stay **silent**. Compares stable per-kind finding identities — excluding volatile fields like `consecutive_failures`, `sha` and `sample_shas` — against the machine-readable block the last run recorded on the issue. Replaces the presence-only skip that let one unclosable issue suppress every new finding for ~10 weeks. | #72 |
 | `trending_scan.py` | Daily trending intake (operator-blocked until `ANTHROPIC_API_KEY` and `PORTFOLIO_PAT` are configured — see #17). | #1, D-003 |
 | `prune_stale_trending.py` | Weekly prune of stale trending issues per handoff §5. | D-003 |
-| `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks, and with `--kind decisions` on unparseable `MEMORY/core_decisions_ai.md` entries. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. | #66, D-010, #75, D-013 |
+| `check_memory_yaml.py` | Ratchet on unparseable `MEMORY/full_history_ai.md` session blocks, and with `--kind decisions` on unparseable `MEMORY/core_decisions_ai.md` entries. Fails when a repo's count *grows* past `memory_yaml_baseline.json`; never demands zero, so the retro-fix decision stays open. Phase A runs it over all 13 repos' `origin/main` (`--root --ref`). | #66, D-010, #75, D-013, #112 |
 | `check_merge_attr.py` | Reports every local clone or worktree under `portfolio-ops/` and `repos/*` whose `git check-attr merge` on `MEMORY/full_history_{ai,human}.md` is not `unspecified`. A leftover `merge=union` in `.git/info/attributes` turns the conflict `resolve_memory_conflict.py` handles into a clean, glued merge. Phase A only: `audit-cron` has no local clones. | #107 |
 | `resolve_memory_conflict.py` | Rebase helper for `MEMORY/full_history_{ai,human}.md` YAML/Markdown merge conflicts. Rebuilds both whole sides and writes ours, then theirs from the last section break they share, so an entry git split into several hunks stays whole (#95) and a hoisted trailer needs no special case. Refuses an entry present on both sides after they diverge, and refuses to write a block with a duplicated `decisions_made:`/`followups:` key. Handles `merge.conflictStyle=diff3`/`zdiff3` (drops an empty `|||||||` base, refuses a non-empty one), and refuses to write if any conflict-marker line is left. Either side of a hunk may be empty (a key or paragraph only one entry has, #101), and both files are resolved and checked before either is written, so a refusal never leaves MEMORY/ half-resolved. Refuses an edit to the last existing entry under the default style too, by checking the merge base from git's index (stage 1) is intact before the cut; with no stage-1 base, two appended tails opening with the same heading or `session:` line are refused as ambiguous (#104). | #11, #23, #25, #65, #90, #95, #101, #104 |
 
@@ -32,10 +32,14 @@ python3 scripts/audit_phase_a.py --repo llm-eval-harness
 # MEMORY YAML ratchet across the whole portfolio. Run from the checkout root
 # that holds both `portfolio-ops/` and `repos/` -- the layout Phase A assumes.
 # portfolio-ops' own CI runs the single-repo form; only an operator with every
-# repo checked out can run the cross-repo one.
+# repo checked out can run the cross-repo one. Phase A step 4 runs exactly
+# these two lines after fetching every clone (#112). `--ref origin/main` reads
+# each file with `git show` as of the last fetch. Without it, the files are
+# read from each clone's working tree, which is whatever branch the last
+# session left it on.
 cd ~/projects/portfolio
-python3 portfolio-ops/scripts/check_memory_yaml.py --root .
-python3 portfolio-ops/scripts/check_memory_yaml.py --root . --kind decisions
+python3 portfolio-ops/scripts/check_memory_yaml.py --root . --ref origin/main
+python3 portfolio-ops/scripts/check_memory_yaml.py --root . --ref origin/main --kind decisions
 # -> 0 within baseline, 1 a repo regressed, 2 usage/IO error
 python3 portfolio-ops/scripts/check_merge_attr.py --root .
 # -> 0 every checkout unspecified, 1 a merge attribute is set, 2 usage error

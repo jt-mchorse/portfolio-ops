@@ -251,6 +251,40 @@ def memory_file(root: Path, repo: str, kind: str = "history") -> Path:
     return root / "repos" / repo / "MEMORY" / name
 
 
+def read_at_ref(root: Path, repo: str, ref: str, kind: str = "history") -> str:
+    """Read a repo's MEMORY file of one kind as committed at ``ref`` (#112).
+
+    The working tree of a local clone is whatever branch the last session left
+    it on. On 2026-10-26, 12 of the 13 clones were on old ``session/*``
+    branches or a detached HEAD, and a working-tree ``--root`` run reported 7
+    repos REGRESSED on damage that #109 had already repaired on main. Phase A
+    asks about main, so it reads ``origin/main`` through ``git show``, which
+    sees exactly what the last ``git fetch`` saw and never touches the
+    checkout. Raises ``FileNotFoundError`` when the clone, the ref, or the file
+    at that ref is missing, which the caller reports as exit 2.
+    """
+    path = memory_file(root, repo, kind)
+    clone = path.parent.parent
+    if not clone.is_dir():
+        raise FileNotFoundError(f"{clone} not found")
+    spec = f"{ref}:MEMORY/{KINDS[kind]['file']}"
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(clone), "show", spec],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        raise FileNotFoundError(f"{clone}: git show {spec}: {e}") from None
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise FileNotFoundError(
+            f"{clone}: git show {spec}: {err[0] if err else 'failed'}"
+        )
+    return proc.stdout.decode("utf-8")
+
+
 def repo_name_for(path: Path) -> str:
     """Name the repo a ``--file`` MEMORY file belongs to (#102).
 
@@ -316,11 +350,21 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--ref",
+        help=(
+            "With --root, read each MEMORY file as committed at this git ref "
+            "(e.g. origin/main) instead of the clone's working tree (#112). "
+            "Fetch first: a remote-tracking ref is as fresh as the last fetch."
+        ),
+    )
+    parser.add_argument(
         "--write-baseline",
         action="store_true",
         help="Rewrite the baseline from the current counts. For a deliberate retro-fix only.",
     )
     args = parser.parse_args(argv)
+    if args.ref and args.file:
+        parser.error("--ref reads clones under --root; it cannot be combined with --file")
 
     kind = KINDS[args.kind]
     baseline = load_baseline(args.kind)
@@ -344,10 +388,18 @@ def main(argv: list[str] | None = None) -> int:
     regressions: list[str] = []
     for repo in repos:
         path = paths[repo]
-        if not path.exists():
+        if args.ref:
+            try:
+                text = read_at_ref(root, repo, args.ref, args.kind)
+            except FileNotFoundError as e:
+                print(f"::error::{e}", file=sys.stderr)
+                return 2
+        elif not path.exists():
             print(f"::error::{path} not found", file=sys.stderr)
             return 2
-        bad, total, reasons = kind["count"](path.read_text(encoding="utf-8"))
+        else:
+            text = path.read_text(encoding="utf-8")
+        bad, total, reasons = kind["count"](text)
         counts[repo] = bad
         allowed = baseline.get(repo)
         if allowed is None:
