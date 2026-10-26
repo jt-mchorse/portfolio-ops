@@ -371,7 +371,13 @@ def main(argv: list[str] | None = None) -> int:
             "never demanding zero, so the retro-fix decision (#66, #75) stays JT's. "
             "Regenerate with --write-baseline only as part of a deliberate retro-fix."
         )
-        data[kind["key"]] = dict(sorted(counts.items()))
+        # Merge into this kind's map rather than replacing it (#111). A run
+        # limited by --repo or --file counted only those repos, and a default
+        # run takes its repo list from the baseline, so a repo dropped here is
+        # silently never checked again. A one-repo re-freeze must change that
+        # repo's count and nothing else.
+        merged = {**data.get(kind["key"], {}), **counts}
+        data[kind["key"]] = dict(sorted(merged.items()))
         ordered = {"_comment": data.pop("_comment"), **data}
         BASELINE_PATH.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {BASELINE_PATH}")

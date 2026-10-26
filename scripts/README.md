@@ -52,8 +52,9 @@ added to each repo's baseline, and nothing else was added.
 not demand zero. `MEMORY/` is append-only (handoff §10), and whether the 74
 existing unparseable blocks are retro-fixed is a JT decision (#66) that the
 ratchet deliberately leaves open. `--write-baseline` re-freezes the counts for
-the `--kind` it was given (the other kind's counts are kept), and should only be
-used as part of a deliberate retro-fix.
+the `--kind` it was given and only for the repos that run checked. The other
+kind's counts are kept, and so is every repo a `--repo` or `--file` run did not
+check (#111). Use it only as part of a deliberate retro-fix.
 
 `--kind decisions` (#75) applies the same ratchet to `core_decisions_ai.md`,
 where `related_issues: [#188]` breaks YAML the same way `followups: [#107]`
