@@ -206,8 +206,9 @@ def test_the_two_kinds_ratchet_against_their_own_baselines() -> None:
 
 
 def test_default_kind_is_still_the_history_file(tmp_path: Path) -> None:
-    """Every existing invocation (CI, Phase A, scripts/README) passes no --kind
-    and must keep meaning what #66 shipped."""
+    """The history invocations in CI and scripts/README pass no --kind and
+    must keep meaning what #66 shipped. (Phase A loops over both kinds by
+    name since #112.)"""
     path = tmp_path / "full_history_ai.md"
     path.write_text("---\nsession: 2026-01-01\nfollowups: [#1]\n---\n")
     proc = _run("--file", str(path), "--repo", "brand-new-repo")

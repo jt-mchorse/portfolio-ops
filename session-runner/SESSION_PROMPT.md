@@ -83,6 +83,27 @@ Do NOT start coding until Phase A is complete. The most common failure mode is j
 
    **Local merge-attribute check (#107).** Also run `python3 scripts/check_merge_attr.py --root ~/projects/portfolio` (exit 0 clean, 1 finding, 2 usage error). It reports any clone or worktree under `portfolio-ops/` or `repos/*` where `git check-attr merge` on `MEMORY/full_history_{ai,human}.md` is not `unspecified`. A leftover `MEMORY/*.md merge=union` in `.git/info/attributes` made sibling MEMORY appends rebase cleanly and glued, so `resolve_memory_conflict.py` never ran; on a finding, delete that line before any rebase.
 
+   **Cross-repo MEMORY YAML ratchet (#112).** Run `scripts/check_memory_yaml.py` over all 13 repos, for both kinds: `history` checks `full_history_ai.md` session blocks (#66) and `decisions` checks `core_decisions_ai.md` entries (#75). It reads each repo's **`origin/main`**, through `git show`, as of the fetch below. It does not read the clone's working tree, because clones are usually left on an old `session/*` branch. On 2026-10-26, 12 of 13 were, and a working-tree run reported 7 repos REGRESSED on damage #109 had already repaired on main. The baseline it compares against is this checkout's `scripts/memory_yaml_baseline.json`, which step 1's `git pull --rebase` made current. portfolio-ops' own CI runs only the single-repo `--file` form. This step is the only automated place the 12 code repos are ratcheted.
+   ```
+   cd ~/projects/portfolio/portfolio-ops
+   for r in rag-production-kit agent-orchestration-platform llm-eval-harness prompt-regression-suite ai-app-integration-tests nextjs-streaming-ai-patterns python-async-llm-pipelines embedding-model-shootout chunking-strategies-lab llm-cost-optimizer vector-search-at-scale mcp-server-cookbook portfolio-ops; do
+     d=~/projects/portfolio/repos/$r; [ "$r" = portfolio-ops ] && d=~/projects/portfolio/portfolio-ops
+     git -C "$d" fetch --quiet origin || echo "memory-yaml fetch failed ($r): its origin/main may be stale"
+   done
+   for kind in history decisions; do
+     out=$(python3 scripts/check_memory_yaml.py --root ~/projects/portfolio --ref origin/main --kind "$kind" 2>&1); rc=$?
+     case "$rc" in
+       0) echo "memory-yaml clean ($kind)" ;;
+       1) echo "memory-yaml REGRESSED ($kind):"; echo "$out" ;;
+       2) echo "memory-yaml usage/IO error ($kind): $out" ;;
+       *) echo "memory-yaml unexpected exit=$rc ($kind): $out" ;;
+     esac
+   done
+   ```
+   - **Clean (exit 0):** log it; no action.
+   - **Regressed (exit 1):** a repo's main has more unloadable MEMORY entries than its frozen baseline allows. Quote the REGRESSED lines in the Phase D summary. If no open issue tracks the repo, file one (`priority:high`) that repairs the new entries in a MEMORY-only PR, the way #109 did. Do **not** raise the baseline: `--write-baseline` is for a deliberate, JT-approved retro-fix only (#66).
+   - **Usage/IO error (exit 2):** a clone is missing, or has no `origin/main`. Log it and continue.
+
 5. **Pick the target repo** (portfolio-session SKILL Phase 1 selection rules, revised cadence + D-007 fall-through + D-009 priority tier):
 
    **Priority tier (D-009).** These 5 repos are worked *more often* than the rest — they get a tighter freshness floor (18h vs 36h) and win every tie-break. The other 8 repos are still worked regularly; they are deprioritized, not dropped.

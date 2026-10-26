@@ -54,8 +54,10 @@ jobs:
       # retro-fixing the existing 74 across the portfolio is JT's call.
       #
       # Only this repo's MEMORY/ is checked here, because it is the only one a
-      # portfolio-ops CI checkout can see. The cross-repo invocation belongs to
-      # Phase A, beside audit_phase_a.py; scripts/README.md documents it.
+      # portfolio-ops CI checkout can see. The cross-repo invocation runs in
+      # Phase A step 4 of session-runner/SESSION_PROMPT.md, beside
+      # audit_phase_a.py, over each clone's origin/main (#112);
+      # scripts/README.md documents it.
       - name: MEMORY YAML ratchet
         run: python scripts/check_memory_yaml.py --file MEMORY/full_history_ai.md --repo portfolio-ops
       # Same ratchet over the decisions file (#75, D-013). `test -f` and the

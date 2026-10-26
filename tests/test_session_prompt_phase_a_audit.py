@@ -364,3 +364,112 @@ def test_fingerprints_list_matches_the_script() -> None:
         "Add the new fingerprint to FINGERPRINTS *and* name it in the Phase A "
         "audit step of session-runner/SESSION_PROMPT.md."
     )
+
+
+# ----------------------------------------------------------------------
+# The cross-repo MEMORY YAML ratchet (#112)
+# ----------------------------------------------------------------------
+#
+# tests.yml, test_check_memory_yaml_decisions.py and #109 all said the
+# cross-repo ratchet runs in Phase A, beside audit_phase_a.py, but step 4 ran
+# only audit_phase_a.py and check_merge_attr.py. `grep -c check_memory_yaml`
+# on this file was 0. These arms lock the step that now runs it.
+
+MEMORY_YAML_SCRIPT = REPO_ROOT / "scripts" / "check_memory_yaml.py"
+MEMORY_YAML_SECTION_RE = re.compile(
+    r"\*\*Cross-repo MEMORY YAML ratchet.*?(?=\n\d+\.\s+\*\*)",
+    re.DOTALL,
+)
+
+
+# Plain helpers rather than fixtures, so a missing step reports each arm as a
+# FAILED test instead of a setup ERROR.
+def _memory_yaml_section() -> str:
+    match = MEMORY_YAML_SECTION_RE.search(SESSION_PROMPT.read_text(encoding="utf-8"))
+    assert match is not None, (
+        "Phase A step 4 in SESSION_PROMPT.md has no `**Cross-repo MEMORY YAML "
+        "ratchet**` paragraph. Nothing else runs check_memory_yaml.py over the "
+        "12 code repos (#112); restore it, or update this regex if it moved."
+    )
+    return match.group(0)
+
+
+def _memory_yaml_invocation() -> str:
+    lines = [ln for ln in _memory_yaml_section().splitlines() if "scripts/check_memory_yaml.py " in ln]
+    lines = [ln for ln in lines if "--root" in ln]
+    assert len(lines) == 1, (
+        "Expected exactly one `scripts/check_memory_yaml.py ... --root` command "
+        f"line in the ratchet step, found {len(lines)}: {lines}"
+    )
+    return lines[0]
+
+
+def test_memory_yaml_ratchet_runs_cross_repo() -> None:
+    memory_yaml_invocation = _memory_yaml_invocation()
+    assert "--root ~/projects/portfolio" in memory_yaml_invocation, memory_yaml_invocation
+
+
+def test_memory_yaml_ratchet_reads_origin_main_not_the_checkout() -> None:
+    """The clones sit on old session branches; on 2026-10-26 a working-tree
+    run reported 7 false REGRESSED repos that origin/main had repaired."""
+    memory_yaml_invocation = _memory_yaml_invocation()
+    assert "--ref origin/main" in memory_yaml_invocation, memory_yaml_invocation
+
+
+def test_memory_yaml_ratchet_fetches_every_repo_first() -> None:
+    """`--ref origin/main` is only as fresh as the last fetch."""
+    memory_yaml_section = _memory_yaml_section()
+    loop = FOR_LOOP_RE.search(memory_yaml_section)
+    assert loop is not None, "ratchet step has no `for r in ...; do` fetch loop"
+    assert set(loop.group(1).split()) == set(ALL_REPOS)
+    fetch = memory_yaml_section.find("fetch")
+    assert fetch != -1 and fetch < memory_yaml_section.find("scripts/check_memory_yaml.py --root"), (
+        "the fetch must come before the ratchet reads origin/main"
+    )
+
+
+def test_memory_yaml_ratchet_covers_every_kind() -> None:
+    """Derived from the script's KINDS, so a third kind fails here the moment
+    it lands rather than never reaching Phase A."""
+    memory_yaml_section = _memory_yaml_section()
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_memory_yaml", MEMORY_YAML_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    match = re.search(r"for\s+kind\s+in\s+([^;]+);\s*do", memory_yaml_section)
+    assert match is not None, "ratchet step has no `for kind in ...; do` loop"
+    assert set(match.group(1).split()) == set(mod.KINDS), (
+        f"ratchet step runs kinds {match.group(1).split()}, script has {sorted(mod.KINDS)}"
+    )
+
+
+def test_memory_yaml_ratchet_preserves_and_branches_on_the_exit_code() -> None:
+    memory_yaml_section = _memory_yaml_section()
+    memory_yaml_invocation = _memory_yaml_invocation()
+    match = re.search(r"out=\$\((.*)\); rc=\$\?", memory_yaml_invocation)
+    assert match is not None, (
+        "capture the exit code on the invocation line itself: out=$(...); rc=$?"
+    )
+    assert "|" not in match.group(1), (
+        "a pipe inside the command substitution swallows the script's exit code"
+    )
+    assert 'case "$rc" in' in memory_yaml_section
+    for arm in ("0)", "1)", "2)", "*)"):
+        assert f"\n       {arm}" in memory_yaml_section, f"missing case arm {arm!r}"
+
+
+def test_memory_yaml_ratchet_documents_exit_codes() -> None:
+    memory_yaml_section = _memory_yaml_section()
+    for label in ("exit 0", "exit 1", "exit 2"):
+        assert label in memory_yaml_section, f"ratchet step does not document {label!r}"
+    assert "--write-baseline" in memory_yaml_section, (
+        "a regression must not be answered by re-freezing the baseline (#66)"
+    )
+
+
+def test_memory_yaml_ratchet_is_part_of_step_4(audit_section: str) -> None:
+    """Beside audit_phase_a.py, where tests.yml says the cross-repo run lives."""
+    assert "**Cross-repo MEMORY YAML ratchet" in audit_section
