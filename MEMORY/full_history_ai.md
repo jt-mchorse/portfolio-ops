@@ -2764,3 +2764,22 @@ context_for_next_session:
   - NOT_DONE_running_the_ratchet_in_each_code_repos_own_CI_stays_JT_gated_109
 followups: []
 ---
+
+---
+session: 2026-10-26T07:47Z
+issue: 113
+focus: SWEEP_FROZEN_DATACLASSES_MATCHED_SUBSTRINGS_OF_THE_WHOLE_ANNOTATION_TUPLE_FIRST_SO_DICT_OF_TUPLE_WAS_SKIPPED_NOW_CLASSIFIED_BY_THE_OUTERMOST_TYPE_VIA_AST
+phase: shipped
+delta:
+  files_changed: 3
+  tests_added: 60
+  suite: "457 -> 517 green"
+decisions_made: []
+measured: "issue probe on origin/main 91a7f76 (a dict[str,tuple], b list[tuple], c List[str], d set, e dict[str,int], f tuple[dict,...]): 1 gap (e) in both string and runtime annotation forms; after: a-e, f not. Old vs new over git archive origin/main of 8 Python repos (csl ems lco leh prs async vsas rag): gap counts identical, only new row is OK eval_harness.runs.StoredRun.rows (already copied) so no live gap. Widening to Sequence/Iterable/Collection/object adds 0 rows today. Revert probe: new file 33 red / 27 green (green = rows the substring rule already got right, kept as parity controls); 2 updated existing arms red. PR #116."
+context_for_next_session:
+  - A_SUBSTRING_TYPE_RULE_ANSWERS_DOES_THE_TEXT_MENTION_X_NOT_IS_THE_FIELD_AN_X_classify_by_the_outer_node
+  - A_CLASS_TYPED_FIELD_STRINGIFIES_AS_LESS_THAN_class_set_GREATER_THAN_so_use_its_name_before_parsing
+  - UNPARSEABLE_ANNOTATIONS_FALL_BACK_TO_THE_OLD_SUBSTRING_RULE_so_nothing_previously_reported_drops_out
+  - NOT_DONE_Sequence_Iterable_object_population_left_as_is_0_rows_today
+followups: []
+---

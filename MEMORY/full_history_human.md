@@ -2249,3 +2249,18 @@ touching the checkout. Phase A step 4 fetches every clone and then runs the
 check for both kinds, branching on the exit code. On today's main, both kinds
 are clean. 18 new tests; 16 of them fail on the old code, and the 2 that pass
 are controls. PR #115.
+
+## 2026-10-26 — the frozen-dataclass sweep reads a field's outer type (#113)
+
+`sweep_frozen_dataclasses.py` decided whether a field could hold a mutable
+value by looking for words anywhere in its type annotation, and checked
+"tuple" first. So `dict[str, tuple[...]]` was skipped because it mentions a
+tuple, and `List[str]` or a bare `set` were missed because the word list was
+lowercase and only had `set[`. That is how leh's `StoredRun.rows` had to be
+found by hand. The script now parses the annotation and looks at the outermost
+type, seeing through `Optional`, unions and `Annotated`. If an annotation
+cannot be parsed, it falls back to the old word match, so nothing previously
+reported disappears. Over today's main of the 8 Python repos, the only change
+is that `StoredRun.rows` now appears, already fixed, so there is no live gap.
+60 new tests; 33 of them fail on the old script, and the rest are cases the
+old rule already handled correctly. PR #116.
