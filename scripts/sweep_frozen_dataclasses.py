@@ -144,6 +144,8 @@ def _is_mutable(node: ast.expr) -> bool:
             return any(_is_mutable(arg) for arg in args)
         if head in _TRANSPARENT_HEADS:
             return _is_mutable(args[0])
+        if head in IMMUTABLE_HINTS:
+            return False  # `tuple[dict, ...]`: the element type is not the field's
         return head in MUTABLE_HINTS
     head = _head(node)
     return head is not None and head in MUTABLE_HINTS

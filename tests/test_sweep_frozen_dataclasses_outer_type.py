@@ -28,7 +28,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.sweep_frozen_dataclasses import mutable_fields, sweep  # noqa: E402
+from scripts.sweep_frozen_dataclasses import (  # noqa: E402
+    IMMUTABLE_HINTS,
+    MUTABLE_HINTS,
+    mutable_fields,
+    sweep,
+)
 
 
 def _reported(annotation: Any) -> bool:
@@ -167,3 +172,9 @@ def test_the_issue_probe_end_to_end(tmp_path: Path, future: bool) -> None:
     name = _package(f"swept_outer_{'s' if future else 'r'}", src, tmp_path)
     gaps = sorted(field for _, field, _, copied in sweep(name) if not copied)
     assert gaps == ["a", "b", "c", "d", "e"]
+
+
+def test_the_two_hint_sets_are_disjoint() -> None:
+    """An outer type cannot be both; an overlap would make the answer depend
+    on which set the classifier happens to consult first."""
+    assert not IMMUTABLE_HINTS & MUTABLE_HINTS
