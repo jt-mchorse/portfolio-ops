@@ -2745,3 +2745,22 @@ context_for_next_session:
   - THE_NX_13_TO_11_REFREEZE_IS_STILL_JT_GATED_66_this_only_makes_it_safe_to_run
 followups: []
 ---
+
+---
+session: 2026-10-26T07:42Z
+issue: 112
+focus: PHASE_A_NEVER_RAN_THE_CROSS_REPO_MEMORY_RATCHET_AND_THE_ROOT_FORM_READ_STALE_SESSION_BRANCH_CHECKOUTS_SO_check_memory_yaml_GAINS_REF_AND_STEP_4_RUNS_IT_AT_ORIGIN_MAIN
+phase: shipped
+delta:
+  files_changed: 7
+  tests_added: 18
+  suite: "439 -> 457 green"
+decisions_made: []
+measured: "origin/main 285ad08: grep -c check_memory_yaml SESSION_PROMPT.md = 0. Local clones ~07:40Z: 12 of 13 on old session/* branches or detached HEAD, all 13 MEMORY files differ from origin/main; --root working-tree history run = 7 REGRESSED rc 1 (aop 9/8 aiapp 8/6 ems 7/6 lco 10/7 leh 14/13 rag 9/8 vsas 10/7, the pre-#109 states); --root --ref origin/main = 13 ok rc 0 both kinds. The documented step block run verbatim in bash: clean/clean rc 0. Revert probe (script + prompt at origin/main): 16 of 18 new arms red, 2 green are the no---ref controls. PR #115."
+context_for_next_session:
+  - A_LOCAL_CLONE_IS_NOT_MAIN_12_OF_13_SAT_ON_OLD_SESSION_BRANCHES_so_any_cross_repo_check_over_working_trees_reports_history_not_the_present
+  - REF_READS_VIA_GIT_SHOW_AS_OF_THE_LAST_FETCH_the_step_fetches_first_and_never_touches_the_checkout
+  - A_PHASE_A_REGRESSION_IS_REPAIRED_IN_A_MEMORY_ONLY_PR_LIKE_109_NOT_ANSWERED_WITH_WRITE_BASELINE
+  - NOT_DONE_running_the_ratchet_in_each_code_repos_own_CI_stays_JT_gated_109
+followups: []
+---

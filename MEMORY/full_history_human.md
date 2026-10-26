@@ -2235,3 +2235,17 @@ nextjs re-freeze from #66 is exactly that kind of single-repo write. The write
 now merges into the existing map, so only the checked repos change. 8 new
 tests; 6 of them fail on the old script, and the 2 that pass are the
 full-write controls. PR #114.
+
+## 2026-10-26 — Phase A now runs the cross-repo MEMORY ratchet, against each repo's main (#112)
+
+Several places said the cross-repo MEMORY YAML ratchet ran in Phase A, but the
+session prompt never ran it, so nothing automated checked the 12 code repos.
+Adding the existing command as it stood would have caused false alarms. It
+reads each local clone's working tree, and today 12 of the 13 clones were
+sitting on old session branches. That run reported seven repos as regressed,
+for damage #109 had already repaired on main. `check_memory_yaml.py` now takes
+`--ref origin/main` and reads each file from git as of the last fetch, without
+touching the checkout. Phase A step 4 fetches every clone and then runs the
+check for both kinds, branching on the exit code. On today's main, both kinds
+are clean. 18 new tests; 16 of them fail on the old code, and the 2 that pass
+are controls. PR #115.
