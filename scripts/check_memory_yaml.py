@@ -54,6 +54,11 @@ list item, ``related_issues: ["#75"]``.
 
 Exit codes match the portfolio convention `audit_phase_a.py` uses:
 ``0`` within baseline, ``1`` a repo regressed, ``2`` a usage or I/O error.
+A repo that cannot be read (a missing clone, ref, or file) is reported and
+skipped, and every other repo is still checked (#118). Exit ``1`` outranks
+``2``: a run with a regression and an I/O error exits ``1``, so an unreadable
+repo can never hide a regression in another one. ``--write-baseline`` writes
+nothing when any repo could not be read.
 """
 
 from __future__ import annotations
@@ -299,7 +304,7 @@ def read_at_ref(root: Path, repo: str, ref: str, kind: str = "history") -> str:
     asks about main, so it reads ``origin/main`` through ``git show``, which
     sees exactly what the last ``git fetch`` saw and never touches the
     checkout. Raises ``FileNotFoundError`` when the clone, the ref, or the file
-    at that ref is missing, which the caller reports as exit 2.
+    at that ref is missing, which the caller reports and skips (#118).
     """
     path = memory_file(root, repo, kind)
     clone = path.parent.parent
@@ -424,6 +429,11 @@ def main(argv: list[str] | None = None) -> int:
 
     counts: dict[str, int] = {}
     regressions: list[str] = []
+    # Repos that could not be read (#118). Until #118 the first one returned 2
+    # from inside this loop, so every repo after it was never checked and a
+    # regression there went unreported for the run. Each is reported and
+    # skipped instead; the exit code is decided after the loop.
+    unreadable: list[str] = []
     for repo in repos:
         path = paths[repo]
         if args.ref:
@@ -431,10 +441,12 @@ def main(argv: list[str] | None = None) -> int:
                 text = read_at_ref(root, repo, args.ref, args.kind)
             except FileNotFoundError as e:
                 print(f"::error::{e}", file=sys.stderr)
-                return 2
+                unreadable.append(repo)
+                continue
         elif not path.exists():
             print(f"::error::{path} not found", file=sys.stderr)
-            return 2
+            unreadable.append(repo)
+            continue
         else:
             text = path.read_text(encoding="utf-8")
         bad, total, reasons = kind["count"](text)
@@ -451,6 +463,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    {reason}", file=sys.stderr)
 
     if args.write_baseline:
+        if unreadable:
+            # A re-freeze is a deliberate act over a known set of repos. One
+            # that could not read some of them is not that act, so nothing is
+            # written rather than a baseline that silently skips them.
+            print(
+                f"::error::not writing the baseline: could not read {', '.join(unreadable)}",
+                file=sys.stderr,
+            )
+            return 2
         # Rewrite only this kind's key. The other kind's frozen counts are
         # someone else's ratchet and must survive a regeneration of this one.
         data = _read_baseline_file()
@@ -480,6 +501,15 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if unreadable:
+        # Only after the regression check: a repo that regressed is reported
+        # as exit 1 even when another repo could not be read, so an I/O error
+        # can never hide a regression (#118).
+        print(
+            f"::error::could not read MEMORY {kind['unit']} for: {', '.join(unreadable)}",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 
