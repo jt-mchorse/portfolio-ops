@@ -104,3 +104,25 @@ def test_no_checkouts_is_exit_2_not_a_silent_pass(tmp_path: Path) -> None:
     proc = _run(tmp_path)
     assert proc.returncode == 2
     assert "no git checkouts" in proc.stderr
+
+
+def test_a_union_line_on_the_decisions_files_alone_is_reported(tmp_path: Path) -> None:
+    """#117: a union merge of two `- id: D-002` appends glues them into one
+    entry, and until #117 only the two history files were asked about."""
+    clone = _clone(tmp_path / "repos" / "vector-search-at-scale")
+    (clone / ".git" / "info" / "attributes").write_text(
+        "MEMORY/core_decisions_*.md merge=union\n"
+    )
+    proc = _run(tmp_path)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "MEMORY/core_decisions_ai.md: merge=union" in proc.stdout
+    assert "MEMORY/core_decisions_human.md: merge=union" in proc.stdout
+    assert "full_history" not in proc.stdout
+
+
+def test_a_committed_driver_on_core_decisions_human_is_reported(tmp_path: Path) -> None:
+    clone = _clone(tmp_path / "portfolio-ops")
+    (clone / ".gitattributes").write_text("MEMORY/core_decisions_human.md merge=ours\n")
+    proc = _run(tmp_path)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "MEMORY/core_decisions_human.md: merge=ours" in proc.stdout

@@ -2264,3 +2264,21 @@ reported disappears. Over today's main of the 8 Python repos, the only change
 is that `StoredRun.rows` now appears, already fixed, so there is no live gap.
 60 new tests; 33 of them fail on the old script, and the rest are cases the
 old rule already handled correctly. PR #116.
+
+## 2026-10-29 — the decisions ratchet now counts a glued entry, and the merge-attribute check covers the decisions files (#117)
+
+#107 taught the history ratchet that an entry can load and still have lost
+data. YAML keeps only the last copy of a repeated key, so two sessions glued
+together by a `merge=union` merge read as the second one alone. The decisions
+ratchet never got that check. Two branches that each appended `- id: D-002`
+merged cleanly into one entry with every field written twice, and
+`--kind decisions` passed it as `0 / 2`. `check_merge_attr.py` also asked git
+only about the two history files, so a union line on the decisions files went
+unreported. Each decision entry is now checked for a repeated key, and a later
+entry that reuses an earlier entry's id is counted too. The merge-attribute
+check now includes `core_decisions_{ai,human}.md`. On today's main of all 13
+repos, the decisions counts are byte-identical before and after, so no
+baseline moves. One case is still invisible: two same-id appends that share no
+field union into one valid-looking decision, and only the merge-attribute
+check prevents that. 10 new tests; 7 of them fail on the old scripts, and the
+3 that pass are controls. PR #119.

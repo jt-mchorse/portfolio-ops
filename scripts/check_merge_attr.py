@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report local clones whose MEMORY history files carry a ``merge`` attribute (#107).
+"""Report local clones whose MEMORY files carry a ``merge`` attribute (#107, #117).
 
 On 2026-10-21 three branches whose MEMORY entry was appended beside a sibling
 entry on main rebased with **no conflict** and came out interleaved: two
@@ -41,7 +41,15 @@ from pathlib import Path
 
 # The two files resolve_memory_conflict.py merges. A union or other driver on
 # either one replaces the conflict it expects with a clean merge it never sees.
-MEMORY_FILES = ("MEMORY/full_history_ai.md", "MEMORY/full_history_human.md")
+# The decisions files are appended the same way (#117): a union merge of two
+# `- id: D-002` appends glues them into one entry that loads as the later
+# decision alone, where git's default merge would have stopped on a conflict.
+MEMORY_FILES = (
+    "MEMORY/full_history_ai.md",
+    "MEMORY/full_history_human.md",
+    "MEMORY/core_decisions_ai.md",
+    "MEMORY/core_decisions_human.md",
+)
 
 
 def checkouts(root: Path) -> list[Path]:
@@ -85,8 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="check_merge_attr",
         description=(
-            "Report every local checkout whose MEMORY history files carry a git "
-            "merge attribute other than unspecified (#107)."
+            "Report every local checkout whose MEMORY history or decisions files "
+            "carry a git merge attribute other than unspecified (#107, #117)."
         ),
     )
     parser.add_argument(
@@ -118,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if bad:
         print(
-            f"::error::{bad} checkout(s) set a merge attribute on MEMORY history; "
+            f"::error::{bad} checkout(s) set a merge attribute on MEMORY files; "
             "remove it (usually a line in .git/info/attributes) so a sibling "
             "append conflicts and resolve_memory_conflict.py sees it (#107).",
             file=sys.stderr,
