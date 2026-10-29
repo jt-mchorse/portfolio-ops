@@ -40,10 +40,18 @@ python3 scripts/audit_phase_a.py --repo llm-eval-harness
 cd ~/projects/portfolio
 python3 portfolio-ops/scripts/check_memory_yaml.py --root . --ref origin/main
 python3 portfolio-ops/scripts/check_memory_yaml.py --root . --ref origin/main --kind decisions
-# -> 0 within baseline, 1 a repo regressed, 2 usage/IO error
+# -> 0 within baseline, 1 a repo regressed, 2 usage/IO error and no regression
 python3 portfolio-ops/scripts/check_merge_attr.py --root .
-# -> 0 every checkout unspecified, 1 a merge attribute is set, 2 usage error
+# -> 0 every checkout unspecified, 1 a merge attribute is set, 2 usage error and no finding
 ```
+
+Both scripts report a repo they cannot read (a missing clone, a missing
+`origin/main`, a missing file, or a `git check-attr` failure), skip it, and
+check every other repo (#118). Exit 1 outranks exit 2. Until #118 each one
+returned 2 at the first unreadable repo, so every repo sorted after it went
+unchecked, and Phase A logs exit 2 and moves on. A regression in a later repo
+went unreported for that run. `--write-baseline` writes nothing when any repo
+could not be read.
 
 Since #107 the history ratchet also counts a block that loads but repeats a
 top-level key. Two entries glued without their `---` fence load as one mapping

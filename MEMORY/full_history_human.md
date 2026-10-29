@@ -2282,3 +2282,23 @@ baseline moves. One case is still invisible: two same-id appends that share no
 field union into one valid-looking decision, and only the merge-attribute
 check prevents that. 10 new tests; 7 of them fail on the old scripts, and the
 3 that pass are controls. PR #119.
+
+## 2026-10-29 — the cross-repo MEMORY ratchet keeps going past a missing clone (#118)
+
+In the `--root` form, `check_memory_yaml.py` returned exit 2 as soon as one
+repo's clone, `origin/main` ref or MEMORY file was missing. Every repo after
+it in sorted order was never read. Phase A logs exit 2 and moves on, so a
+regression in any later repo went unreported for that run, and whether a repo
+got checked depended on where a missing clone fell in alphabetical order. On a
+fixture with only `vector-search-at-scale` present and regressed, the
+documented command stopped at `agent-orchestration-platform not found` and
+never looked at it. Each unreadable repo is now reported and skipped. The run
+exits 1 if any repo regressed, 2 only if something was unreadable and nothing
+regressed, and 0 otherwise. `--write-baseline` still refuses to write after a
+partial read. `check_merge_attr.py` had the same early return and runs in the
+same Phase A step, so it got the same fix. On today's live checkouts the
+output is byte-identical to before. `audit_phase_a.py` has the same shape, but
+the weekly cron feeds its findings into issue dedupe, and a partial set there
+would look like resolved findings, so it was left for a decision. 15 new
+tests; 12 of them fail on the old scripts, and the 3 that pass are controls.
+PR #120.

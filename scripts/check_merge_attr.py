@@ -29,7 +29,9 @@ clones, where this check could only ever report clean.
 
 Exit codes follow ``audit_phase_a.py``: ``0`` every checkout reports
 ``unspecified``, ``1`` at least one does not, ``2`` a usage error (no
-checkouts under ``--root``, or git could not answer).
+checkouts under ``--root``, or git could not answer). A checkout git cannot
+answer for is reported and skipped, and every other one is still asked
+(#118). Exit ``1`` outranks ``2``, so a git error never hides a finding.
 """
 
 from __future__ import annotations
@@ -110,12 +112,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     bad = 0
+    # Checkouts git could not answer for (#118). Returning 2 from inside the
+    # loop left every later checkout unasked, so a merge attribute on one of
+    # them went unreported; each is reported and skipped instead.
+    failed: list[str] = []
     for checkout in found:
         try:
             attrs = merge_attrs(checkout)
         except (OSError, subprocess.SubprocessError, RuntimeError) as e:
             print(f"::error::{checkout}: {e}", file=sys.stderr)
-            return 2
+            failed.append(checkout.name)
+            continue
         set_attrs = {p: v for p, v in attrs.items() if v != "unspecified"}
         if set_attrs:
             bad += 1
@@ -132,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if failed:
+        # After the finding check, so a git error cannot hide a finding (#118).
+        print(
+            f"::error::git check-attr failed in: {', '.join(failed)}", file=sys.stderr
+        )
+        return 2
     return 0
 
 

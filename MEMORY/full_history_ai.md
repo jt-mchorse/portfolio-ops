@@ -2802,3 +2802,21 @@ context_for_next_session:
   - NEXT_118_the_exit_2_loop_in_main_was_left_untouched
 followups: ["#118"]
 ---
+
+---
+session: 2026-10-29T08:02Z
+issue: 118
+focus: CHECK_MEMORY_YAML_ROOT_RETURNED_2_INSIDE_THE_PER_REPO_LOOP_ON_THE_FIRST_UNREADABLE_REPO_SO_LATER_REPOS_WERE_NEVER_CHECKED_NOW_SKIPPED_AND_EXIT_1_OUTRANKS_2_SAME_FIX_IN_CHECK_MERGE_ATTR
+phase: shipped
+delta:
+  files_changed: 6
+  tests_added: 15
+  suite: "527 -> 542 green"
+decisions_made: []
+measured: "origin/main 54ab64d, fixture root with only repos/vector-search-at-scale (20 bare [#1] blocks at origin/main): --root --ref origin/main before = agent-orchestration-platform not found rc 2, vsas never read; after = 12 not-found lines then vsas 20 / 20 (baseline 7) REGRESSED rc 1. Working-tree --root form had the same early return. Live --root ~/projects/portfolio --ref origin/main: old vs new output byte-identical both kinds (13 ok rc 0); live check_merge_attr rc 0. Revert probe: 12 of 15 new arms red, 3 green are controls (clean exit 0 x2, write-baseline refuses). PR #120."
+context_for_next_session:
+  - A_RETURN_INSIDE_A_PER_REPO_LOOP_MAKES_COVERAGE_DEPEND_ON_SORT_ORDER_decide_the_exit_after_the_loop
+  - EXIT_1_OUTRANKS_2_an_IO_error_never_hides_a_regression_and_write_baseline_still_refuses_a_partial_run
+  - NOT_DONE_audit_phase_a_has_the_same_return_2_in_its_repo_loop_but_continuing_would_feed_audit_issue_sync_a_partial_finding_set_needs_a_call
+followups: []
+---
