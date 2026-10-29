@@ -2783,3 +2783,22 @@ context_for_next_session:
   - NOT_DONE_Sequence_Iterable_object_population_left_as_is_0_rows_today
 followups: []
 ---
+
+---
+session: 2026-10-29T07:52Z
+issue: 117
+focus: DECISIONS_RATCHET_HAD_NO_DUPLICATE_KEY_CHECK_SO_A_UNION_GLUED_SAME_ID_ENTRY_LOADED_AS_THE_LATER_DECISION_ALONE_AND_CHECK_MERGE_ATTR_SKIPPED_THE_DECISIONS_FILES
+phase: shipped
+delta:
+  files_changed: 6
+  tests_added: 10
+  suite: "517 -> 527 green"
+decisions_made: []
+measured: "origin/main 7015040, fixture with MEMORY/*.md merge=union in info/attributes and two D-002 appends, real git merge rc 0: before 0 / 2 ok rc 0, after 1 / 2 REGRESSED rc 1 (duplicate key(s): title, status, related_issues). Decisions-only union attr: check_merge_attr ok rc 0 before, both core_decisions files reported rc 1 after. --root ~/projects/portfolio --ref origin/main --kind decisions output byte-identical before/after (13 ok), 0 duplicate reasons live; live check_merge_attr rc 0. Revert probe: 7 of 10 new arms red, 3 green are controls. PR #119."
+context_for_next_session:
+  - THE_ID_IS_READ_FROM_THE_DASH_ID_LINE_NOT_THE_LOADED_ENTRY_so_an_unloadable_first_copy_still_claims_it
+  - UNION_NEVER_WRITES_TWO_SAME_ID_LINES_it_keeps_the_shared_id_once_so_the_duplicate_id_arm_covers_a_keep_both_conflict_resolution
+  - NOT_DETECTABLE_two_same_id_appends_with_disjoint_keys_union_into_one_valid_entry_only_check_merge_attr_prevents_it
+  - NEXT_118_the_exit_2_loop_in_main_was_left_untouched
+followups: ["#118"]
+---
