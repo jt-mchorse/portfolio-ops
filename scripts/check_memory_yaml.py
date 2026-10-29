@@ -126,7 +126,13 @@ def _duplicate_top_level_keys(block: str) -> list[str]:
     """
     import yaml
 
-    node = yaml.compose(block, Loader=yaml.SafeLoader)
+    return _duplicate_keys(yaml.compose(block, Loader=yaml.SafeLoader))
+
+
+def _duplicate_keys(node: Any) -> list[str]:
+    """Keys a composed mapping node repeats, in first-seen order."""
+    import yaml
+
     if not isinstance(node, yaml.MappingNode):
         return []
     seen: set[str] = set()
@@ -159,6 +165,11 @@ def _is_block(chunk: str, *, header: bool) -> bool:
     return any(_is_content(ln) for ln in chunk.splitlines())
 
 
+# The id a decision entry opens with, as written on its `- id:` line. Read
+# from the text rather than the loaded entry, so an entry that fails to load
+# still claims its id and a later copy of it is still seen.
+_DECISION_ID = re.compile(r"""^- id:[ \t]*["']?([^\s"'#]+)""")
+
 # A decision entry opens with `- id:` at column 0. Anything before the first
 # one is the file's comment header, and a `# D-002 superseded` comment between
 # entries rides along with the entry above it, where it is harmless.
@@ -172,6 +183,10 @@ def count_unparseable_decisions(text: str) -> tuple[int, int, list[str]]:
     would report one failure for a file with ten bad entries, and zero entries
     readable either way, so it could not tell a repo that added a bad entry
     from one that repaired three.
+
+    An entry that loads still counts if its mapping repeats a key, or if its
+    id repeats an earlier entry's (#117). Both are what a clean ``merge=union``
+    merge of two appends leaves, and both load without an error.
     """
     try:
         import yaml
@@ -183,10 +198,21 @@ def count_unparseable_decisions(text: str) -> tuple[int, int, list[str]]:
     unparseable = 0
     total = 0
     reasons: list[str] = []
+    ids: set[str] = set()
     for entry in _DECISION.split(text):
         if not entry.startswith("- id:"):
             continue
         total += 1
+        m = _DECISION_ID.match(entry)
+        if m:
+            if m.group(1) in ids:
+                # Two entries claiming one id (#117): a consumer looking a
+                # decision up by id reads whichever it finds first. Only the
+                # later copy is counted, so one repeat costs one entry.
+                unparseable += 1
+                reasons.append(f"{entry.splitlines()[0].strip()}: duplicate id")
+                continue
+            ids.add(m.group(1))
         try:
             loaded = yaml.safe_load(entry)
         except Exception as e:  # noqa: BLE001 - any loader failure counts
@@ -203,6 +229,18 @@ def count_unparseable_decisions(text: str) -> tuple[int, int, list[str]]:
         ):
             unparseable += 1
             reasons.append(f"{entry.splitlines()[0].strip()}: not a single mapping")
+            continue
+        # Loads, but with a key the entry's mapping repeats (#117), the #107
+        # check one level down. Two appends of the same `- id:` glued by a
+        # clean `merge=union` merge share the id line and keep every other
+        # line, so the entry reads as the later decision alone.
+        node = yaml.compose(entry, Loader=yaml.SafeLoader)
+        dups = _duplicate_keys(node.value[0])
+        if dups:
+            unparseable += 1
+            reasons.append(
+                f"{entry.splitlines()[0].strip()}: duplicate key(s): {', '.join(dups)}"
+            )
     return unparseable, total, reasons
 
 
