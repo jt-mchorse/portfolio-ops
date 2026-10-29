@@ -2820,3 +2820,22 @@ context_for_next_session:
   - NOT_DONE_audit_phase_a_has_the_same_return_2_in_its_repo_loop_but_continuing_would_feed_audit_issue_sync_a_partial_finding_set_needs_a_call
 followups: []
 ---
+
+---
+session: 2026-10-29T08:06Z
+issue: 122
+focus: SWEEP_FROZEN_DATACLASSES_RAISED_OUT_OF_ITS_PER_NAME_LOOP_ON_THE_FIRST_UNSWEEPABLE_NAME_SO_LATER_NAMES_WERE_NEVER_SWEPT_NOW_ERROR_LINE_CONTINUE_AND_EXIT_2_ON_A_PARTIAL_SWEEP
+phase: shipped
+delta:
+  files_changed: 2
+  tests_added: 7
+  suite: "542 -> 549 green"
+decisions_made: []
+measured: "origin/main 1d9fe98, fixtures broken_pkg (__init__ raises ImportError) then gappy_pkg (one frozen Any gap): before = ImportError traceback rc 1, gappy_pkg never swept; same for a missing name (ModuleNotFoundError) and a plain module (AttributeError on __path__, from the walk not the import). After = ::error:: line on stderr, GAP gappy_pkg.mod.F.value reported, rc 2; plain module swept, rc 0. Revert probe: 6 of 7 new arms red, 1 green is the complete-sweep-exits-0 control. PR #123."
+context_for_next_session:
+  - GAPS_STILL_EXIT_0_the_docstring_and_test_main_exits_zero_even_with_gaps_make_it_a_measurement_so_1_is_unused_and_2_means_partial_or_usage
+  - THE_ISSUE_SAID_ALWAYS_EXITS_0_but_a_crash_exited_1_via_the_traceback
+  - A_PLAIN_MODULE_IS_NOW_SWEPT_FOR_ITS_OWN_DATACLASSES_rather_than_reported_as_a_failure
+  - NOT_DONE_dataclasses_defined_in_a_package_root_init_py_are_never_collected_walk_only_scans_submodules
+followups: []
+---

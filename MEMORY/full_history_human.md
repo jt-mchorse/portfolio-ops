@@ -2302,3 +2302,20 @@ the weekly cron feeds its findings into issue dedupe, and a partial set there
 would look like resolved findings, so it was left for a decision. 15 new
 tests; 12 of them fail on the old scripts, and the 3 that pass are controls.
 PR #120.
+
+## 2026-10-29 — the frozen-dataclass sweep keeps going past a broken package (#122)
+
+`sweep_frozen_dataclasses.py` swept each name on its command line in turn, but
+nothing caught an exception inside that loop. The first name that could not
+be swept ended the run with a traceback, and every name after it was skipped
+without a word. Three inputs did it: a package whose `__init__` raises, a name
+that is not installed, and a plain module, where the walk read a `__path__`
+that modules do not have. The traceback's exit code was 1, so even the issue's
+"always exits 0" was not quite right. Each failure is now an `::error::` line
+on stderr, the sweep moves on, and the script exits 2 if anything was not
+swept. A plain module is now swept for its own dataclasses. Gaps still exit 0,
+because the script is a measurement and not a gate. That was a deliberate
+choice, recorded in its docstring and its tests. 7 new tests; 6 of them fail on
+the old script, and the one that passes is the clean-sweep control. Noticed
+but not fixed: dataclasses defined in a package's own `__init__.py` are never
+collected, because the walk only scans submodules. PR #123.
