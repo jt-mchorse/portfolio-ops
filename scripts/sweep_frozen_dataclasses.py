@@ -38,8 +38,13 @@ Usage::
     python3 scripts/sweep_frozen_dataclasses.py <import-name> [<import-name> ...]
 
 Run from inside the target repo (its package must be importable). Exits 0
-always: this is a measurement, not a gate. Making it a gate would file 21 bug
-reports for a list whose real-hit rate is about a third.
+whatever the gap count: this is a measurement, not a gate. Making it a gate
+would file 21 bug reports for a list whose real-hit rate is about a third.
+
+Exits 2 on a usage error, or when a named package cannot be imported or
+swept (#122). Each failure is printed as `::error::<name>: <exc>` on stderr and the sweep
+moves on to the next name, so one broken package never hides the ones after
+it, and the exit code still tells a partial sweep from a complete one.
 """
 
 from __future__ import annotations
@@ -202,17 +207,26 @@ def discover_dataclasses(package: Any) -> dict[str, type]:
                 continue
             if mod.ispkg:
                 walk(module)
-            for name, obj in vars(module).items():
-                # `obj.__module__ == module.__name__` keeps a re-exported class
-                # from being counted once per module that imports it.
-                if (
-                    inspect.isclass(obj)
-                    and dataclasses.is_dataclass(obj)
-                    and obj.__module__ == module.__name__
-                ):
-                    found[f"{module.__name__}.{name}"] = obj
+            collect(module)
 
-    walk(package)
+    def collect(module: Any) -> None:
+        for name, obj in vars(module).items():
+            # `obj.__module__ == module.__name__` keeps a re-exported class
+            # from being counted once per module that imports it.
+            if (
+                inspect.isclass(obj)
+                and dataclasses.is_dataclass(obj)
+                and obj.__module__ == module.__name__
+            ):
+                found[f"{module.__name__}.{name}"] = obj
+
+    if hasattr(package, "__path__"):
+        walk(package)
+    else:
+        # A plain module named on the command line has no submodules to walk.
+        # Before #122 this raised `AttributeError` on `__path__` and ended the
+        # sweep for every name after it.
+        collect(package)
     return found
 
 
@@ -235,15 +249,33 @@ def main(argv: list[str]) -> int:
         print(f"usage: {argv[0]} <import-name> [<import-name> ...]", file=sys.stderr)
         return 2
     gaps = 0
+    failed: list[str] = []
     for import_name in argv[1:]:
         print(f"=== {import_name}")
-        for name, field_name, annotation, is_copied in sweep(import_name):
+        try:
+            rows = sweep(import_name)
+        except Exception as exc:
+            # Keep going (#122): an exception escaping this loop ended the sweep
+            # at the first broken package, so every name after it went unswept.
+            # Any import-time exception counts, not only `ImportError`: a
+            # package `__init__` can raise anything.
+            print(
+                f"::error::{import_name}: {type(exc).__name__}: {exc}", file=sys.stderr
+            )
+            failed.append(import_name)
+            continue
+        for name, field_name, annotation, is_copied in rows:
             if not is_copied:
                 gaps += 1
             print(
                 f"  {'OK  ' if is_copied else 'GAP '} {name}.{field_name}: {annotation}"
             )
     print(f"\n{gaps} gap(s). A GAP is a candidate, not a bug — triage reachability.")
+    if failed:
+        print(
+            f"{len(failed)} package(s) not swept: {', '.join(failed)}", file=sys.stderr
+        )
+        return 2
     return 0
 
 
